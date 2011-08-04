@@ -1,0 +1,46 @@
+#First section: paths
+paths:
+  db: '{%paths.application}/db'
+
+application:
+#  mode:
+  development:
+    title: 'YPFramework'
+    url: 'http://localhost/~yonpols/dev/ypf'
+    root: '/home'
+    pack_media: false
+    pretty_url: true
+    profile: true
+
+  production:
+    title: 'YPFramework'
+    url: 'http://10.200.0.7/~yonpols/dev/ypf'
+    root: '/home'
+    pack_media: false
+    pretty_url: true
+    profile: true
+
+routes:
+  home:
+    match: '/home(.:format)'
+    controller: 'home'
+    action: 'index'
+    method: 'get'
+
+#  noaction:
+#    match: '/:controller(.:format)'
+#    action: 'index'
+
+  default:
+    match: '/(:controller(/:action(/:id)))(.:format)'
+
+databases:
+  #One database configuration for each application mode
+  development:
+    type: SQLite2
+    name: '{%paths.db}/development.db'
+
+  production:
+    type: SQLite2
+    name: '{%paths.db}/production.db'
+
