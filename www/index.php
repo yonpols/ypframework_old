@@ -1,18 +1,25 @@
 <?php
-    define('YPF_PATH', realpath(dirname(__FILE__).'/../ypf'));
-    require realpath(YPF_PATH.'/ypf.php');
+    define('WWW_PATH', realpath(dirname(__FILE__)).'/');
 
-    try
+    //Change this settings if your www dir is not in the default location
+    define('YPF_PATH', realpath(dirname(__FILE__).'/../ypf').'/');
+    
+    //Uncomment this settings if your app dir is not in the default location
+    //define('APP_PATH', realpath(dirname(__FILE__).'/../app').'/');
+    //define('LIB_PATH', realpath(dirname(__FILE__).'/../lib').'/');
+    
+    require realpath(YPF_PATH.'ypf.php');
+    try 
     {
         Application::run();
-    }
-    catch (Exception $e)
+    } 
+    catch (Exception $e) 
     {
         Application::log('ERROR', $e->getMessage()."\n\t".$e->getTraceAsString());
 
-        if (Configuration::get()->mode != 'development')
+        if (!APP_DEVELOPMENT)
             ob_clean();
         header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true, 500);
-        echo to_html($e->getMessage(), true);
+        echo $e->getMessage();
     }
 ?>

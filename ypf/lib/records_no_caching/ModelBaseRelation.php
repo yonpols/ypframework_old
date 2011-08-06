@@ -13,8 +13,6 @@
         protected $relatorModelParams;
         protected $relatedModelParams;
 
-        protected $customQueries;
-
         protected $tempAliasRelator;
         protected $tempAliasRelated;
 
@@ -27,12 +25,10 @@
             $this->relatorModelName = $relatorModelName;
             $this->relationName = $relationName;
             $this->relationParams = $relationParams;
-            $this->customQueries =
 
-            $sqlConditions = isset($relationParams['sqlConditions'])? $relationParams['sqlConditions']: array();
-            $sqlGrouping = isset($relationParams['sqlGrouping'])? $relationParams['sqlGrouping']: array();
-            $sqlOrdering = isset($relationParams['sqlOrdering'])? $relationParams['sqlOrdering']: array();
-            $this->customQueries = isset($relationParams['queries'])? $relationParams['queries']: array();
+            $sqlConditions = isset($relationInfo['sqlConditions'])? $relationInfo['sqlConditions']: array();
+            $sqlGrouping = isset($relationInfo['sqlGrouping'])? $relationInfo['sqlGrouping']: array();
+            $sqlOrdering = isset($relationInfo['sqlOrdering'])? $relationInfo['sqlOrdering']: array();
 
             if (isset($this->relationParams['belongs_to']))
             {
@@ -122,47 +118,30 @@
             $this->modelQuery = new ModelQuery($this->relatedModelName, $tableName, $this->relationName, array(),
                 $this->relatedModelParams->sqlConditions,
                 $this->relatedModelParams->sqlGrouping,
-                $this->relatedModelParams->sqlOrdering, null,
-                $this->customQueries, false);
+                $this->relatedModelParams->sqlOrdering, null, false);
         }
 
         public function get($relatorModel)
         {
             if ($this->relationSingle)
                 return $this->modelQuery->select($relatorModel->getSQlIdConditions($this->tempAliasRelator))->first();
-            else
-                return $this->getTiedToRelator ($relatorModel);
+            else {
+                $relation = clone $this;
+                $relation->tieToRelator($relatorModel);
+                return $relation;
+            }
         }
 
         public function set($relatorModel, $value)
         {
             if ($this->relationSingle)
             {
-                if (is_string($value))
-                {
-                    $object = eval(sprintf('return new %s();', $this->relatedModelName));
-                    if ($object->find($value))
-                        $value = $object;
-                    else
-                        $value = null;
-                }
-
-                if ($value === null)
-                {
-                    if ($this->relationType == 'belongs_to')
-                        foreach($this->relationParams['keys'] as $index=>$key)
-                            $relatorModel->{$key} = null;
-                    elseif ($this->relationType == 'has_one')
-                        throw new YPFrameworkError("Unsupported functionality");
-                } elseif (!($value instanceof $this->relatedModelName))
-                    throw new YPFrameworkError(sprintf('Can\'t assign values to %s relation: %s because object is not instance of %s', $this->relationType, $this->relationName, $this->relatedModelName));
-
                 if ($this->relationType == 'belongs_to')
                     foreach($this->relationParams['keys'] as $index=>$key)
-                        $relatorModel->{$key} = $value->{$this->relatedModelParams->keyFields[$index]};
+                        $relatorModel->{$key} = $value->{$this->relatedModelParams->keyFileds[$index]};
                 elseif ($this->relationType == 'has_one')
                     foreach($this->relationParams['keys'] as $index=>$key)
-                        $value->{$key} = $relatorModel->{$this->relatorModelParams->keyFields[$index]};
+                        $value->{$key} = $relatorModel->{$this->relatorModelParams->keyFileds[$index]};
             } else
                 throw new YPFrameworkError(sprintf('Can\'t assign values to %s relation: %s', $this->relationType, $this->relationName));
         }
@@ -195,50 +174,12 @@
             $this->relatorInstance = $relatorModel;
         }
 
-        public function getTiedToRelator($relatorModel)
-        {
-            $relation = clone $this;
-            $relation->tieToRelator($relatorModel);
-            return $relation;
-        }
-
         public function toArray()
         {
             return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator))->toArray();
         }
 
-        public function getRelationName()
-        {
-            return $this->relationName;
-        }
-
-        public function getRelationType()
-        {
-            return $this->relationType;
-        }
-
-        public function getRelatorModelName()
-        {
-            return $this->relatorModelName;
-        }
-
-        public function getRelatedModelName()
-        {
-            return $this->relatedModelName;
-        }
-
-        public function __get($name)
-        {
-            if (isset($this->customQueries[$name]))
-                return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator))->{$name};
-        }
-
         // ----------- ModelQuery Implementation--------------------------------
-        public function fields($fields)
-        {
-            return $this->modelQuery->fields($fields);
-        }
-
         public function all()
         {
             return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator));
@@ -247,11 +188,10 @@
         public function count($sqlConditions = null, $sqlGrouping = null)
         {
             if ($sqlConditions == null)
-                $sqlConditions = array();
-            elseif (is_string($sqlConditions))
-                $sqlConditions = array('('.$sqlConditions.')');
+                $sqlConditions = $this->relatorInstance->getSQlIdConditions($this->tempAliasRelator);
+            else
+                $sqlConditions = array_merge($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator), $sqlConditions);
 
-            $sqlConditions = array_merge($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator), $sqlConditions);
             return $this->modelQuery->count($sqlConditions, $sqlGrouping);
         }
 
@@ -262,7 +202,8 @@
 
         public function groupBy($sqlGrouping)
         {
-            return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator), $sqlGrouping);
+            $sqlConditions = $this->relatorInstance->getSQlIdConditions($this->tempAliasRelator);
+            return $this->modelQuery->select($sqlConditions, $sqlGrouping);
         }
 
         public function last()
@@ -272,20 +213,18 @@
 
         public function limit($limit)
         {
-            return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator),
-                array(), array(), $limit);
+            $sqlConditions = $this->relatorInstance->getSQlIdConditions($this->tempAliasRelator);
+            return $this->modelQuery->select($sqlConditions, array(), array(), $limit);
         }
 
         public function orderBy($sqlOrdering)
         {
-            return $this->modelQuery->select($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator),
-                array(), $sqlOrdering);
+            $sqlConditions = $this->relatorInstance->getSQlIdConditions($this->tempAliasRelator);
+            return $this->modelQuery->select($sqlConditions, array(), $sqlOrdering);
         }
 
         public function select($sqlConditions, $sqlGrouping = array(), $sqlOrdering = array(), $sqlLimit = null)
         {
-            if (is_string($sqlConditions))
-                $sqlConditions = array('('.$sqlConditions.')');
             $sqlConditions = array_merge($this->relatorInstance->getSQlIdConditions($this->tempAliasRelator), $sqlConditions);
             return $this->modelQuery->select($sqlConditions, $sqlGrouping, $sqlOrdering, $sqlLimit);
         }

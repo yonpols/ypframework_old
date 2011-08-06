@@ -13,17 +13,8 @@
 		 *	true 	=> conecta
 		 *	false	=> no conecta
 		 */
-		public function connect($database = null)
+		public function connect()
 		{
-            if ($database !== null)
-                $this->dbname = $database;
-
-            if (is_resource($this->db))
-            {
-                mysql_close($this->db);
-                $this->db = null;
-            }
-
 			if (($this->db = mysql_connect($this->host, $this->user, $this->pass, true)) === false)
 			{
 				Application::log('ERROR:DB', mysql_error());
@@ -58,8 +49,7 @@
 			{
                 Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
-			} else
-                Application::log('SQL:DB', $sql);
+			}
 
             $id = mysql_insert_id($this->db);
 			if ((strtoupper(substr($sql, 0, 6)) == "INSERT") && ($id > 0))
@@ -87,8 +77,7 @@
 			{
 				Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
-			} else
-                Application::log('SQL:DB', $sql);
+			}
 
 			$q = new MySQLQuery($this, $sql, $res);
 			return $q;
@@ -105,10 +94,9 @@
 			{
 				Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
-			} else
-                Application::log('SQL:DB', $sql);
+			}
 
-			$row = mysql_fetch_assoc($res);
+			$row = mysql_fetch_row($res);
 
 			if (!$row)
 				return false;
@@ -116,7 +104,7 @@
             if ($getRow)
                 return $row;
             else
-                return array_shift($row);
+                return $row[0];
 		}
 
         public function getTableFields($table)
@@ -152,17 +140,8 @@
         }
 	}
 
-	class MySQLQuery extends Query implements Iterator
+	class MySQLQuery extends Query
 	{
-        private $_iteratorKey = null;
-
-        public function __construct(DataBase $database, $sql, $res)
-        {
-            parent::__construct($database, $sql, $res);
-            $this->rows = mysql_num_rows($this->resource);
-			$this->cols = mysql_num_fields($this->resource);
-        }
-
         public function __destruct()
         {
             mysql_free_result($this->resource);
@@ -170,28 +149,19 @@
 
         protected function loadMetaData()
         {
+            $this->rows = mysql_num_rows($this->resource);
+			$this->cols = mysql_num_fields($this->resource);
 			$this->fieldsInfo = array();
 
 			for ($i = 0; $i < $this->cols; $i++)
-            {
-                $obj = new Object();
-                $info = mysql_fetch_field($this->resource, $i);
-
-                $obj->Name = $info->name;
-                $obj->Type = $info->type;
-                $obj->Key = ($info->primary_key == 1);
-                $obj->Null = !$obj->Key;
-                $obj->Default = null;
-
-				$this->fieldsInfo[$obj->Name] = $obj;
-            }
-
+				$this->fieldsInfo[$i] = mysql_fetch_field($this->resource, $i);
 		}
 
 		public function getNext()
 		{
 			$this->row = mysql_fetch_assoc($this->resource);
             $this->eof = ($this->row === false);
+            $this->prepareRow();
 			return $this->row;
 		}
 
@@ -199,41 +169,8 @@
 		{
 			$this->row = mysql_fetch_object($this->resource);
             $this->eof = ($this->row === false);
+            $this->prepareRow();
 			return $this->row;
 		}
-
-        public function current()
-        {
-            return $this->row;
-        }
-
-        public function key()
-        {
-            return $this->_iteratorKey;
-        }
-
-        public function next()
-        {
-            $this->getNextObject();
-            if ($this->_iteratorKey === null)
-                $this->_iteratorKey = 0;
-            else
-                $this->_iteratorKey++;
-        }
-
-        public function rewind()
-        {
-            if ($this->_iteratorKey !== null)
-            {
-                $this->eof = true;
-                return;
-            }
-            $this->next();
-        }
-
-        public function valid()
-        {
-            return !$this->eof;
-        }
 	}
 ?>

@@ -5,8 +5,6 @@
 
         protected $database = null;
         protected $app = null;
-        protected $config = null;
-        protected $routes = null;
         protected $data;
         protected $layout;
         protected $params;
@@ -18,10 +16,8 @@
 
         public function  __construct()
         {
-            $this->app = Application::get();
-            $this->config = Configuration::get();
+            $this->app = Application::$app;
             $this->database = $this->app->database;
-            $this->routes = $this->config->routes;
             $this->controllerName = substr(get_class($this), 0, -10);
         }
 
@@ -75,7 +71,7 @@
             if ($data == null)
                 $data = $this->data;
 
-            $view = new View($this, $this->app->profile);
+            $view = new View();
             foreach ($data as $key=>$value)
                 $view->set($key, $value);
 
@@ -91,9 +87,14 @@
             throw new StopRenderException();
         }
 
-        protected function redirectTo($url=null)
+        protected function redirectTo($action = null, $object = null, $format = null, $params = array())
         {
-            $this->app->redirectTo($url);
+            $this->app->redirectTo($action, $object, $format, $params);
+        }
+
+        protected function redirectToUrl($url)
+        {
+            $this->app->redirectToUrl($url);
         }
 
         protected function forwardTo($action, $params = array())

@@ -58,22 +58,12 @@
         return $result;
     }
 
-    function to_hash()
+    function h()
     {
         $result = array();
         for ($i = 0; $i < func_num_args(); $i+=2)
             $result[func_get_arg ($i)] = func_get_arg ($i+1);
 
         return $result;
-    }
-
-    function arraize($value)
-    {
-        if ($value === null)
-            return array();
-        elseif(is_array($value))
-            return $value;
-        else
-            return array($value);
     }
 ?>

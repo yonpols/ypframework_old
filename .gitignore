@@ -1,5 +1,6 @@
-/nbproject/private/
 /app/tmp/*
 /app/logs/*
 /app/db/*
+/nbproject/private/
+.gitignore
 .DS_Store

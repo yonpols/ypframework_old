@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>{%app.title}</title>
+        {% renderTag('js') }
+        {% renderTag('css') }
+
+        <script type="text/javascript">
+            $(function() {
+                app.basePath = '{%app.urlBasePath}';
+                {%if:app.error } app.error('{%app.error}');{%end:}
+                {%if:app.notice } app.mensaje('{%app.notice}');{%end:}
+                {%js_on_action_load(app)}
+            });
+        </script>
+    </head>
+    <body>
+        <div id="mensaje" class="ui-widget" style="display:none; z-index: 2; position:absolute; width: 600px; left: 310px; top: 45px;">
+            <div class="ui-state-highlight ui-corner-all">
+                <p>
+                    <span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em; margin-left: 0.4em;"></span>
+                    <strong>Información: </strong><span class="texto"></span>
+                </p>
+            </div>
+        </div>
+        <div id="error" class="ui-widget" style="display:none; z-index: 2; position:absolute; width: 600px; left: 310px; top: 45px;">
+            <div class="ui-state-error ui-corner-all">
+                <p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em; margin-left: 0.4em;"></span>
+                <strong>Error: </strong><span class="texto"></span></p>
+            </div>
+        </div>
+        <div id="dlgBlank" style="display: none;"></div>
+
+        <div id="pantalla">
+            <div id="logo"></div>
+            <div id="barraSuperior">
+                <div id="contenidoBarraSuperior">
+                    <div class="titulo">{%app.title}</div>
+                    <div id="progreso"></div>
+                    <div class="menu">
+                        <div class="itemMenu">
+                            <a class="boton" href="{% urlTo() }">Index</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cuerpoPagina">
+                <div id="contenidoPagina">
+                    {%html}
+                </div>
+                <div id="piePagina">
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

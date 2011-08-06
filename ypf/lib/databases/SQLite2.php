@@ -4,9 +4,9 @@
 	{
         public $exists;
 
-        public function __construct($configuration, $connect = true)
+        public function __construct($dbname, $connect = true)
         {
-            parent::__construct($configuration, $connect);
+            parent::__construct($dbname, null, null, null, $connect);
         }
 
 		/*
@@ -14,16 +14,8 @@
 		 *	true 	=> conecta
 		 *	false	=> no conecta
 		 */
-		public function connect($database = null)
+		public function connect()
 		{
-            if ($database !== null)
-                $this->dbname = $database;
-            if (is_resource($this->db))
-            {
-                sqlite_close($this->db);
-                $this->db = null;
-            }
-
             $this->exists = file_exists($this->dbname);
 
 			if (($this->db = sqlite_open($this->dbname)) === false)
@@ -150,32 +142,19 @@
         }
 	}
 
-    class SQLite2Query extends Query implements Iterator
+    class SQLite2Query extends Query
 	{
-        private $_iteratorKey = null;
-
-        public function __construct(DataBase $database, $sql, $res)
-        {
-            parent::__construct($database, $sql, $res);
-            $this->rows = sqlite_num_rows($this->resource);
-			$this->cols = sqlite_num_fields($this->resource);
-		}
-
         protected function loadMetaData()
         {
-        	$this->fieldsInfo = array();
+            $this->rows = sqlite_num_rows($this->resource);
+			$this->cols = sqlite_num_fields($this->resource);
+			$this->fieldsInfo = array();
 
 			for ($i = 0; $i < $this->cols; $i++)
             {
-                $obj = new Object();
-
-                $obj->Name = sqlite_field_name($this->resource, $i);
-                $obj->Type = 'string';
-                $obj->Key = false;
-                $obj->Null = true;
-                $obj->Default = null;
-
-				$this->fieldsInfo[$obj->Name] = $obj;
+                $field = new Object();
+                $field->name = sqlite_field_name($this->resource, $i);
+                $field->type = 'varchar';
             }
 		}
 
@@ -192,40 +171,6 @@
             $this->eof = ($this->row === false);
 			return $this->row;
 		}
-
-        public function current()
-        {
-            return $this->row;
-        }
-
-        public function key()
-        {
-            return $this->_iteratorKey;
-        }
-
-        public function next()
-        {
-            $this->getNextObject();
-            if ($this->_iteratorKey === null)
-                $this->_iteratorKey = 0;
-            else
-                $this->_iteratorKey++;
-        }
-
-        public function rewind()
-        {
-            if ($this->$_iteratorKey !== null)
-            {
-                $this->eof = true;
-                return;
-            }
-            $this->next();
-        }
-
-        public function valid()
-        {
-            return !$this->eof();
-        }
 	}
 
 ?>

@@ -1,0 +1,5 @@
+ - Preparar ModelBase
+ - Desarrollar sistema de sesion y permisos
+ - Armar hashes para los ids
+ - Mejorar interconectividad con los distintos motores de BD
+ - Llevar schema de la base de datos y migraciones

@@ -1,13 +1,13 @@
 <?php
     $form_ids = 0;
 
-    function form($url = '', $method = 'POST', $options = array())
+    function form($action = null, $method = 'POST', $options = array())
     {
         global $form_ids;
 
         $html = sprintf('<form id="form%d" action="%s" method="%s"',
             ++$form_ids,
-            $url,
+            urlTo($action),
             htmlentities($method, ENT_QUOTES, 'utf-8'));
 
         foreach ($options as $key=>$val)
@@ -98,9 +98,10 @@
             $html .= '></option>';
         }
 
+        if (is_array($values))
         foreach ($values as $k=>$v)
         {
-            if (is_object($v) && ($v instanceof Model))
+            if (is_object($v) && $v instanceof Model)
             {
                 $key = $v->getSerializedKey();
 
@@ -194,8 +195,6 @@
             if (isset ($object->{$name}))
             {
                 if ($value === null) $value = $object->{$name};
-                if ($value instanceof Model)
-                    $value = $value->getSerializedKey();
             }
 
             $id = sprintf('%s_%s', get_class($object), $name);

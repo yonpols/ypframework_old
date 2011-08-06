@@ -9,12 +9,12 @@
 
 		protected $db = NULL;
 
-        public function  __construct($configuration, $connect = true)
+        public function  __construct($dbname, $host = NULL, $user = NULL, $pass = NULL, $connect = true)
 		{
-			$this->host = isset($configuration->host)? $configuration->host: null;
-			$this->dbname = isset($configuration->name)? $configuration->name: null;
-			$this->user = isset($configuration->user)? $configuration->user: null;
-			$this->pass = isset($configuration->password)? $configuration->password: null;
+			$this->host = $host;
+			$this->dbname = $dbname;
+			$this->user = $user;
+			$this->pass = $pass;
 
 			if ($connect)
             {
@@ -28,7 +28,7 @@
 		 *	true 	=> conecta
 		 *	false	=> no conecta
 		 */
-		public abstract function connect($database = null);
+		public abstract function connect();
 
 		/*
 		 *	Ejecuta una consulta SQL. Orientado a consultas DELETE, UPDATE  e INSERT
@@ -171,11 +171,12 @@
             $this->resource = $res;
             $this->eof = false;
             $this->row = new stdClass();
+
+            $this->loadMetaData();
 		}
 
 		public abstract function getNext();
 
-        /*
         protected function prepareRow()
         {
             foreach($this->fieldsInfo as $field)
@@ -205,7 +206,7 @@
                         break;
                 }
             }
-        }*/
+        }
 
         public function  __get($name)
         {
@@ -250,21 +251,10 @@
 
         public function getFieldInfo($index)
         {
-            if ($this->fieldsInfo === null)
-                $this->loadMetaData();
-
             if (isset($this->fieldsInfo[$index]))
                 return $this->fieldsInfo[$index];
             else
                 return false;
-        }
-
-        public function getFieldsInfo()
-        {
-            if ($this->fieldsInfo === null)
-                $this->loadMetaData();
-
-            return $this->fieldsInfo;
         }
 
         public function getDataBase()

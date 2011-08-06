@@ -103,14 +103,12 @@
 
             $settings = get_class_vars($model);
             $params = new Object();
-            $params->transientFields =(isset($settings['_transientFields'])? $settings['_transientFields']: array());
             $params->tableName =(isset($settings['_tableName'])? $settings['_tableName']: strtolower($model.'s'));
             $params->keyFields =(isset($settings['_keyFields'])? $settings['_keyFields']: array('id'));
             $params->tableMetaData =(isset($settings['_tableMetaData'])? $settings['_tableMetaData']: null);
             $params->tableCharset =(isset($settings['_tableCharset'])? strtolower($settings['_tableCharset']): 'utf-8');
             $params->baseTableName =(isset($settings['_baseTableName'])? $settings['_baseTableName']: null);
             $params->aliasName =(isset($settings['_aliasName'])? $settings['_aliasName']: null);
-            $params->customQueries = (isset($settings['_queries'])? $settings['_queries']: array());
 
             $params->relations =(isset($settings['_relations'])? $settings['_relations']: array());
 
@@ -157,8 +155,7 @@
                     $params->sqlConditions,
                     $params->sqlGrouping,
                     $params->sqlOrdering,
-                    $params->sqlLimit,
-                    $params->customQueries);
+                    $params->sqlLimit);
         }
 
         //Métodos de Instancia
@@ -171,15 +168,6 @@
             {
                 if (!$this->find($id))
                     throw new YPFrameworkError (sprintf('Couldn\'t load %s intance with id "%s"', $this->_modelName, $id));
-            } else {
-                $this->_modelModified = false;
-                $this->_modelFieldModified = array_fill_keys(array_keys($this->_modelParams->tableMetaData), false);
-                $this->_modelData = array();
-
-                foreach($this->_modelParams->tableMetaData as $field=>$metadata)
-                $this->_modelData[$field] = $metadata->Default;
-                foreach($this->_modelParams->transientFields as $field=>$default)
-                $this->_modelData[$field] = $default;
             }
         }
 
@@ -194,10 +182,6 @@
 
                 return $this->_modelParams->relationObjects->{$name}->get($this);
             }
-            elseif (array_key_exists($name, $this->_modelParams->transientFields))
-                return $this->_modelData[$name];
-            elseif (isset($this->_modelParams->customQueries[$name]))
-                return $this->modelQuery->{$name};
             else
                 return null;
         }
@@ -213,28 +197,9 @@
             elseif (isset($this->_modelParams->relations[$name]))
             {
                 if (!isset($this->_modelParams->relationObjects->{$name}))
-                    $this->_modelParams->relationObjects->{$name} = new ModelBaseRelation($this->_modelName, $name, $this->_modelParams->relations[$name]);
+                    $this->_modelParams->relationObjects->{$name} = ModelBaseRelation ($this->_modelName, $name, $this->_modelParams->relations[$name]);
 
                 $this->_modelParams->relationObjects->{$name}->set($this, $value);
-            }
-            elseif (array_key_exists($name, $this->_modelParams->transientFields))
-                $this->_modelData[$name] = $value;
-        }
-
-        public function __isset($name)
-        {
-            return (isset($this->_modelParams->tableMetaData[$name]) |
-                    isset($this->_modelParams->relations[$name]) |
-                    array_key_exists($name, $this->_modelParams->transientFields));
-        }
-
-        public function __unset($name)
-        {
-            if (isset($this->_modelParams->tableMetaData[$name]) | array_key_exists($name, $this->_modelParams->transientFields))
-            {
-                $this->_modelData[$name] = $this->_modelParams->tableMetaData[$name]->Default;
-                $this->_modelModified = true;
-                $this->_modelFieldModified[$name] = true;
             }
         }
 
@@ -268,6 +233,8 @@
             else
                 return null;
         }
+
+
 
         public function find($id)
         {
@@ -376,8 +343,10 @@
             if (!$result)
                 return false;
 
-            $sql = sprintf("DELETE FROM %s WHERE %s",
-                $this->_modelParams->baseTableName, implode(' AND ', $this->getSQlIdConditions(false)));
+            $alias = ($this->_modelParams->aliasName=='')? '': ' AS '.$this->_modelParams->aliasName;
+
+            $sql = sprintf("DELETE FROM %s%s WHERE %s",
+                $this->_modelParams->baseTableName, $alias, implode(' AND ', $this->getSQlIdConditions()));
 
             $result = self::$__database->command($sql);
 
@@ -408,8 +377,6 @@
             $this->_modelModified = false;
             $this->_modelFieldModified = array_fill_keys(array_keys($this->_modelParams->tableMetaData), false);
             $this->_modelData = array_fill_keys(array_keys($this->_modelParams->tableMetaData), null);
-            foreach ($this->_modelParams->transientFields as $field=>$default)
-                $this->_modelData[$field] = $default;
 
             foreach($record as $field => $value)
             {
@@ -488,19 +455,6 @@
                 $conditions[] = sprintf('(%s%s = %s)', $alias, $field, $this->getFieldSQLRepresentation($field));
 
             return $conditions;
-        }
-
-        public function getRelationObject($name)
-        {
-            if (isset($this->_modelParams->relations[$name]))
-            {
-                if (!isset($this->_modelParams->relationObjects->{$name}))
-                    $this->_modelParams->relationObjects->{$name} = new ModelBaseRelation($this->_modelName, $name, $this->_modelParams->relations[$name]);
-
-                return $this->_modelParams->relationObjects->{$name}->getTiedToRelator($this);
-            }
-
-            return null;
         }
 
         protected function getFieldSQLRepresentation($field, $customValue=null)
@@ -641,11 +595,6 @@
         }
 
         // ----------- ModelQuery Implementation--------------------------------
-        public function fields($fields)
-        {
-            return $this->_modelParams->modelQuery->fields($fields);
-        }
-
         public function all()
         {
             return $this->_modelParams->modelQuery->all();
