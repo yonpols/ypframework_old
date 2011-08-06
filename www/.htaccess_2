@@ -1,0 +1,6 @@
+RewriteEngine on
+RewriteBase /~yonpols/dev/piemsa/
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?::action=$1 [L,QSA]

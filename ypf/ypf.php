@@ -10,6 +10,8 @@
     define('LOG_PATH', realpath(APP_PATH.'/logs'));
     define('TMP_PATH', realpath(APP_PATH.'/tmp'));
 
+    define('YPF_MODEL_CACHE_MAX', 20);
+
     //Load YPF clases
     require_once YPF_PATH.'/lib/Object.php';
     require_once YPF_PATH.'/lib/databases/DataBase.php';

@@ -1,5 +1,5 @@
     <?php
-    class ModelBase extends Object implements Iterator, IModelQuery
+    class ModelBase extends Object implements Iterator
     {
         //Variables de ModelBase, no pueden redefinirse.
         protected static $__cache = null;
@@ -23,112 +23,132 @@
         public static function getModelParams($model)
         {
             if (!isset(self::$__modelParams->{$model}))
-            {
-                try {
-                    eval("new $model();");
-                } catch (Exception $e) {
-
-                }
-            }
-
+                self::initializeModel ($model);
             return (isset(self::$__modelParams->{$model})? self::$__modelParams->{$model}: null);
         }
 
-        //Métodos de Clase<ModelBase
-        protected function initializeModel()
+        public static function find($id)
         {
-            if (self::$__modelParams === null)
-                self::$__modelParams = new Object();
-            if (self::$__cache === null)
-                self::$__cache = new Object();
+            $modelName = get_called_class();
+            $modelParams = self::getModelParams($modelName);
 
-            $this->_modelName = get_class($this);
-            $model = $this->_modelName;
+            if (is_array($id))
+            {
+                $null = true;
+                $key = array();
 
-            if (isset(self::$__modelParams->{$model}))
-                return;
+                foreach ($modelParams->keyFields as $k)
+                {
+                    if (!isset($id[$k]))
+                        return null;
+                    $key[] = self::encodeKey($id[$k]);
+                }
 
-            $settings = get_class_vars($model);
-            $params = new Object();
-            $params->transientFields =(isset($settings['_transientFields'])? $settings['_transientFields']: array());
-            $params->tableName =(isset($settings['_tableName'])? $settings['_tableName']: strtolower($model.'s'));
-            $params->keyFields =(isset($settings['_keyFields'])? arraize($settings['_keyFields']): array('id'));
-            $params->tableMetaData =(isset($settings['_tableMetaData'])? $settings['_tableMetaData']: null);
-            $params->tableCharset =(isset($settings['_tableCharset'])? strtolower($settings['_tableCharset']): 'utf-8');
-            $params->baseTableName =(isset($settings['_baseTableName'])? $settings['_baseTableName']: null);
-            $params->aliasName =(isset($settings['_aliasName'])? $settings['_aliasName']: null);
-            $params->customQueries = (isset($settings['_queries'])? $settings['_queries']: array());
+                $str_key = implode('|', $key);
+            }
+            else
+                $str_key = $id;
 
-            $params->relations =(isset($settings['_relations'])? $settings['_relations']: array());
+            if (isset(self::$__cache->{$modelName}) && array_key_exists($str_key, self::$__cache->{$modelName}))
+                return self::$__cache->{$modelName}[$str_key];
+            else
+                self::$__cache->{$modelName} = array();
 
-            $params->sqlConditions =(isset($settings['_sqlConditions'])? $settings['_sqlConditions']: array());
-            $params->sqlGrouping =(isset($settings['_sqlGrouping'])? $settings['_sqlGrouping']: array());
-            $params->sqlOrdering =(isset($settings['_sqlOrdering'])? $settings['_sqlOrdering']: array());
-            $params->sqlLimit =(isset($settings['_sqlLimit'])? $settings['_sqlLimit']: null);
-            $params->sqlFields =(isset($settings['_sqlFields'])? $settings['_sqlFields']: null);
+            $id = self::decodeKey($id, $modelParams);
+            $aliasPrefix = ($modelParams->aliasName!='')? $modelParams->aliasName.'.': '';
 
-            $params->beforeLoad =(isset($settings['_beforeLoad'])? $settings['_beforeLoad']: array());
-            $params->beforeDelete =(isset($settings['_beforeDelete'])? $settings['_beforeDelete']: array());
-            $params->beforeSave =(isset($settings['_beforeSave'])? $settings['_beforeSave']: array());
+            //Preparar condiciones
+            $conditions = $modelParams->sqlConditions;
+            if (is_array($id))
+            {
+                foreach ($id as $key=>$value)
+                    if (array_search ($key, $modelParams->keyFields) !== false)
+                        $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $key, self::getFieldSQLRepresentation($key, $value, $modelParams));
+            } elseif (count($modelParams->keyFields) == 1)
+                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $modelParams->keyFields[0], self::getFieldSQLRepresentation($modelParams->keyFields[0], $id, $modelParams));
+            else
+                throw new YPFrameworkError(sprintf('%s.find(): invalid number of key values', $modelName));
 
-            $params->afterLoad =(isset($settings['_afterLoad'])? $settings['_afterLoad']: array());
-            $params->afterDelete =(isset($settings['_afterDelete'])? $settings['_afterDelete']: array());
-            $params->afterSave =(isset($settings['_afterSave'])? $settings['_afterSave']: array());
+            $sql = $modelParams->modelQuery->fields($modelParams->aliasName.'.*')->select($conditions)->limit(1)->getSqlQuery();
+            $query = self::$__database->query($sql);
+            $row = $query->getNext();
 
-            $params->relationObjects = new Object();
-            $params->modelQuery =null;
-            self::$__modelParams->{$model} = $params;
-
-            if ($params->tableMetaData !== null)
+            if (!$row)
                 return false;
-
-            if (($params->baseTableName === null) && (preg_match('/^[a-zA-Z_0-9][a-zA-Z_0-9\\.]*$/', $params->tableName)))
-                $params->baseTableName = $params->tableName;
-
-            if (($params->aliasName === null) && ($params->baseTableName !== null))
-                $params->aliasName = $params->baseTableName;
-
-            if (self::$__database === null)
-                self::$__database = Application::get()->database;
-
-            if ($params->baseTableName !== null)
-                $params->tableMetaData = self::$__database->getTableFields($params->baseTableName);
             else
             {
-                $params->tableMetaData = array();
-                if ($params->sqlFields)
-                {
-                    foreach($params->sqlFields as $field)
-                    {
-                        $obj = new Object();
-                        $obj->Type = 'string';
-                        $obj->Key = (array_search($field, $params->keyFields) !== false);
-                        $obj->Null = !$obj->Key;
-                        $obj->Default = null;
+                $instance = eval(sprintf('return new %s();', $modelName));
+                $instance->loadFromRecord($row, $query);
+                self::$__cache->{$modelName}[$str_key] = $instance;
 
-                        if (($pos = strpos($field, '.')) !== false)
-                            $field = substr($field, $pos+1);
-                        $obj->Name = $field;
-                        $params->tableMetaData[$field] = $obj;
-                    }
-                }
+                if (count(self::$__cache->{$modelName}) > YPF_MODEL_CACHE_MAX)
+                    array_splice (self::$__cache->{$modelName}, 0, count(self::$__cache->{$modelName})-YPF_MODEL_CACHE_MAX);
+
+                return $instance;
             }
+        }
 
-            if ($params->modelQuery === null)
-                $params->modelQuery = new ModelQuery(
-                    $model, $params->tableName,
-                    $params->aliasName, $params->sqlFields,
-                    $params->sqlConditions,
-                    $params->sqlGrouping,
-                    $params->sqlOrdering,
-                    $params->sqlLimit,
-                    $params->customQueries);
+        // ----------- ModelQuery Implementation--------------------------------
+        public static function fields($fields)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->fields($fields);
+        }
+
+        public static function all()
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->all();
+        }
+
+        public static function count($sqlConditions = null, $sqlGrouping = null)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->count($sqlConditions, $sqlGrouping);
+        }
+
+        public static function first()
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->first();
+        }
+
+        public static function groupBy($sqlGrouping)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->groupBy($sqlGrouping);
+        }
+
+        public static function last()
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->last();
+        }
+
+        public static function limit($limit)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->limit($limit);
+        }
+
+        public static function orderBy($sqlOrdering)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->orderBy($sqlOrdering);
+        }
+
+        public static function select($sqlConditions, $sqlGrouping = array(), $sqlOrdering = array(), $sqlLimit = null)
+        {
+            $modelParams = self::getModelParams(get_called_class());
+            return $modelParams->modelQuery->select($sqlConditions, $sqlGrouping, $sqlOrdering, $sqlLimit);
         }
 
         //Métodos de Instancia
         public function __construct($id=null)
         {
-            $this->initializeModel();
+            $this->_modelName = get_class($this);
+
+            self::initializeModel($this->_modelName);
             $this->_modelParams = self::$__modelParams->{$this->_modelName};
 
             if ($id !== null)
@@ -211,7 +231,7 @@
             {
                 $v = $this->__get($k);
                 $null = $null && ($v === null);
-                $key[] = $this->encodeKey($v);
+                $key[] = self::encodeKey($v);
             }
 
             return $null? null: (($stringify)? implode('|', $key): $key);
@@ -238,95 +258,6 @@
                 return null;
         }
 
-        /*
-        public static function find($id)
-        {
-            if (isset(self::$__cache->{$this->_modelName}))
-            {
-                if (is_array($id))
-                    $str_key = $this->encodeKey($id);
-                else
-                    $str_key = $id;
-
-                if (array_key_exists($str_key, self::$__cache->{$this->_modelName}))
-                    return self::$__cache->{$this->_modelName}[$str_key];
-            } else
-                self::$__cache->{$this->_modelName} = array();
-
-            $id = $this->decodeKey($id);
-            $aliasPrefix = ($this->_modelParams->aliasName!='')? $this->_modelParams->aliasName.'.': '';
-
-            //Preparar condiciones
-            $conditions = $this->_modelParams->sqlConditions;
-            if (is_array($id))
-            {
-                foreach ($id as $key=>$value)
-                    if (array_search ($key, $this->_modelParams->keyFields) !== false)
-                        $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $key, $this->getFieldSQLRepresentation($key, $value));
-            } elseif (count($this->_modelParams->keyFields) == 1)
-                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $this->_modelParams->keyFields[0], $this->getFieldSQLRepresentation($this->_modelParams->keyFields[0], $id));
-            else
-                throw new YPFrameworkError(sprintf('%s.find(): invalid number of key values', get_class($this)));
-            $where = ' WHERE '.implode(' AND ', $conditions);
-
-            //Preparar agrupación
-            $group = (count($this->_modelParams->sqlGrouping) > 0)? ' GROUP BY '.implode(', ', $this->_modelParams->sqlGrouping): '';
-
-            //Preparar ordenación
-            $order = (count($this->_modelParams->sqlOrdering) > 0)? ' ORDER BY '.implode(', ', $this->_modelParams->sqlOrdering): '';
-
-            $sql = sprintf('SELECT %s* FROM %s%s%s%s LIMIT 1',
-                                $aliasPrefix, $this->_modelParams->tableName, $where, $group, $order);
-
-            $query = self::$__database->query($sql);
-            $row = $query->getNext();
-
-            if (!$row)
-                return false;
-            else {
-                $this->loadFromRecord($row, $query);
-                return true;
-            }
-        }*/
-
-        public function find($id)
-        {
-            $id = $this->decodeKey($id);
-            $aliasPrefix = ($this->_modelParams->aliasName!='')? $this->_modelParams->aliasName.'.': '';
-
-            //Preparar condiciones
-            $conditions = $this->_modelParams->sqlConditions;
-            if (is_array($id))
-            {
-                foreach ($id as $key=>$value)
-                    if (array_search ($key, $this->_modelParams->keyFields) !== false)
-                        $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $key, $this->getFieldSQLRepresentation($key, $value));
-            } elseif (count($this->_modelParams->keyFields) == 1)
-                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $this->_modelParams->keyFields[0], $this->getFieldSQLRepresentation($this->_modelParams->keyFields[0], $id));
-            else
-                throw new YPFrameworkError(sprintf('%s.find(): invalid number of key values', get_class($this)));
-            $where = ' WHERE '.implode(' AND ', $conditions);
-
-            //Preparar agrupación
-            $group = (count($this->_modelParams->sqlGrouping) > 0)? ' GROUP BY '.implode(', ', $this->_modelParams->sqlGrouping): '';
-
-            //Preparar ordenación
-            $order = (count($this->_modelParams->sqlOrdering) > 0)? ' ORDER BY '.implode(', ', $this->_modelParams->sqlOrdering): '';
-
-            $sql = sprintf('SELECT %s* FROM %s%s%s%s LIMIT 1',
-                                $aliasPrefix, $this->_modelParams->tableName, $where, $group, $order);
-
-            $query = self::$__database->query($sql);
-            $row = $query->getNext();
-
-            if (!$row)
-                return false;
-            else {
-                $this->loadFromRecord($row, $query);
-                return true;
-            }
-        }
-
         public function save()
         {
             if (!$this->_modelModified)
@@ -345,7 +276,7 @@
                 $fieldValues = array();
 
                 foreach ($fieldNames as $field)
-                    $fieldValues[] = $this->getFieldSQLRepresentation($field);
+                    $fieldValues[] = self::getFieldSQLRepresentation($field, $this->__get($field), $this->_modelParams);
 
                 $sql = sprintf("INSERT INTO %s (%s) VALUES(%s)", $this->_modelParams->baseTableName,
                     implode(', ', $fieldNames), implode(', ', $fieldValues));
@@ -363,7 +294,7 @@
 
                 foreach ($fieldNames as $field)
                     if ($this->_modelFieldModified[$field])
-                        $fieldAssigns[] = sprintf("%s = %s", $field, $this->getFieldSQLRepresentation($field));
+                        $fieldAssigns[] = sprintf("%s = %s", $field, self::getFieldSQLRepresentation($field, $this->__get($field), $this->_modelParams));
 
                 $sql = sprintf("UPDATE %s SET %s WHERE %s", $this->_modelParams->baseTableName,
                     implode(', ', $fieldAssigns), implode(' AND ', $this->getSQlIdConditions(false)));
@@ -509,7 +440,8 @@
                 $aliasPrefix = '';
 
             foreach($this->_modelParams->keyFields as $field)
-                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $field, $this->getFieldSQLRepresentation($field));
+                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $field,
+                    self::getFieldSQLRepresentation ($field, $this->__get($field), $this->_modelParams));
 
             return $conditions;
         }
@@ -527,17 +459,15 @@
             return null;
         }
 
-        protected function getFieldSQLRepresentation($field, $customValue=null)
+        protected static function getFieldSQLRepresentation($field, $value, $modelParams)
         {
-            if (!array_key_exists($field, $this->_modelParams->tableMetaData))
+            if (!array_key_exists($field, $modelParams->tableMetaData))
                 return null;
-
-            $value = ($customValue===null)? $this->_modelData[$field]: $customValue;
 
             if ($value === null)
                 return 'NULL';
 
-            switch ($this->_modelParams->tableMetaData[$field]->Type)
+            switch ($modelParams->tableMetaData[$field]->Type)
             {
                 case 'integer':
                 case 'int':
@@ -561,14 +491,14 @@
                 case 'text':
                 case 'string':
                 default:
-                    if ($this->_modelParams->tableCharset != 'utf-8')
-                        return sprintf("'%s'", self::$__database->sqlEscaped(iconv('utf-8', $this->_modelParams->tableCharset, $value)));
+                    if ($modelParams->tableCharset != 'utf-8')
+                        return sprintf("'%s'", self::$__database->sqlEscaped(iconv('utf-8', $modelParams->tableCharset, $value)));
                     else
                         return sprintf("'%s'", self::$__database->sqlEscaped($value));
             }
         }
 
-        protected function encodeKey($key)
+        protected static function encodeKey($key)
         {
             $result = '';
             $key = $key.'';
@@ -585,23 +515,110 @@
             return $result;
         }
 
-        protected function decodeKey($key)
+        protected static function decodeKey($key, $modelParams)
         {
             if (is_array($key))
                 return $key;
 
             $key = explode('|', $key);
 
-            if (count($this->_modelParams->keyFields) <= count($key))
+            if (count($modelParams->keyFields) <= count($key))
             {
                 $result = array();
-                for ($i = 0; $i < count($this->_modelParams->keyFields); $i++)
-                    $result[$this->_modelParams->keyFields[$i]] = urldecode ($key[$i]);
+                for ($i = 0; $i < count($modelParams->keyFields); $i++)
+                    $result[$modelParams->keyFields[$i]] = urldecode ($key[$i]);
 
                 return $result;
             }
 
             return null;
+        }
+
+        protected static function initializeModel($model)
+        {
+            if (self::$__modelParams === null)
+                self::$__modelParams = new Object();
+            if (self::$__cache === null)
+                self::$__cache = new Object();
+
+            if (isset(self::$__modelParams->{$model}))
+                return;
+
+            $settings = get_class_vars($model);
+            $params = new Object();
+            $params->transientFields =(isset($settings['_transientFields'])? $settings['_transientFields']: array());
+            $params->tableName =(isset($settings['_tableName'])? $settings['_tableName']: strtolower($model.'s'));
+            $params->keyFields =(isset($settings['_keyFields'])? arraize($settings['_keyFields']): array('id'));
+            $params->tableMetaData =(isset($settings['_tableMetaData'])? $settings['_tableMetaData']: null);
+            $params->tableCharset =(isset($settings['_tableCharset'])? strtolower($settings['_tableCharset']): 'utf-8');
+            $params->baseTableName =(isset($settings['_baseTableName'])? $settings['_baseTableName']: null);
+            $params->aliasName =(isset($settings['_aliasName'])? $settings['_aliasName']: null);
+            $params->customQueries = (isset($settings['_queries'])? $settings['_queries']: array());
+
+            $params->relations =(isset($settings['_relations'])? $settings['_relations']: array());
+
+            $params->sqlConditions =(isset($settings['_sqlConditions'])? $settings['_sqlConditions']: array());
+            $params->sqlGrouping =(isset($settings['_sqlGrouping'])? $settings['_sqlGrouping']: array());
+            $params->sqlOrdering =(isset($settings['_sqlOrdering'])? $settings['_sqlOrdering']: array());
+            $params->sqlLimit =(isset($settings['_sqlLimit'])? $settings['_sqlLimit']: null);
+            $params->sqlFields =(isset($settings['_sqlFields'])? $settings['_sqlFields']: null);
+
+            $params->beforeLoad =(isset($settings['_beforeLoad'])? $settings['_beforeLoad']: array());
+            $params->beforeDelete =(isset($settings['_beforeDelete'])? $settings['_beforeDelete']: array());
+            $params->beforeSave =(isset($settings['_beforeSave'])? $settings['_beforeSave']: array());
+
+            $params->afterLoad =(isset($settings['_afterLoad'])? $settings['_afterLoad']: array());
+            $params->afterDelete =(isset($settings['_afterDelete'])? $settings['_afterDelete']: array());
+            $params->afterSave =(isset($settings['_afterSave'])? $settings['_afterSave']: array());
+
+            $params->relationObjects = new Object();
+            $params->modelQuery =null;
+            self::$__modelParams->{$model} = $params;
+
+            if ($params->tableMetaData !== null)
+                return false;
+
+            if (($params->baseTableName === null) && (preg_match('/^[a-zA-Z_0-9][a-zA-Z_0-9\\.]*$/', $params->tableName)))
+                $params->baseTableName = $params->tableName;
+
+            if (($params->aliasName === null) && ($params->baseTableName !== null))
+                $params->aliasName = $params->baseTableName;
+
+            if (self::$__database === null)
+                self::$__database = Application::get()->database;
+
+            if ($params->baseTableName !== null)
+                $params->tableMetaData = self::$__database->getTableFields($params->baseTableName);
+            else
+            {
+                $params->tableMetaData = array();
+                if ($params->sqlFields)
+                {
+                    foreach($params->sqlFields as $field)
+                    {
+                        $obj = new Object();
+                        $obj->Type = 'string';
+                        $obj->Key = (array_search($field, $params->keyFields) !== false);
+                        $obj->Null = !$obj->Key;
+                        $obj->Default = null;
+
+                        if (($pos = strpos($field, '.')) !== false)
+                            $field = substr($field, $pos+1);
+                        $obj->Name = $field;
+                        $params->tableMetaData[$field] = $obj;
+                    }
+                }
+            }
+
+            if ($params->modelQuery === null)
+                $params->modelQuery = new ModelQuery(
+                    $model, $params->tableName,
+                    $params->aliasName, $params->sqlFields,
+                    $params->sqlConditions,
+                    $params->sqlGrouping,
+                    $params->sqlOrdering,
+                    $params->sqlLimit,
+                    $params->customQueries);
         }
 
         //Object redefinition
@@ -662,52 +679,6 @@
         public function valid()
         {
             return ($this->_iteratorCurrentIndex < count($this->_modelParams->tableMetaData));
-        }
-
-        // ----------- ModelQuery Implementation--------------------------------
-        public function fields($fields)
-        {
-            return $this->_modelParams->modelQuery->fields($fields);
-        }
-
-        public function all()
-        {
-            return $this->_modelParams->modelQuery->all();
-        }
-
-        public function count($sqlConditions = null, $sqlGrouping = null)
-        {
-            return $this->_modelParams->modelQuery->count($sqlConditions, $sqlGrouping);
-        }
-
-        public function first()
-        {
-            return $this->_modelParams->modelQuery->first();
-        }
-
-        public function groupBy($sqlGrouping)
-        {
-            return $this->_modelParams->modelQuery->groupBy($sqlGrouping);
-        }
-
-        public function last()
-        {
-            return $this->_modelParams->modelQuery->last();
-        }
-
-        public function limit($limit)
-        {
-            return $this->_modelParams->modelQuery->limit($limit);
-        }
-
-        public function orderBy($sqlOrdering)
-        {
-            return $this->_modelParams->modelQuery->orderBy($sqlOrdering);
-        }
-
-        public function select($sqlConditions, $sqlGrouping = array(), $sqlOrdering = array(), $sqlLimit = null)
-        {
-            return $this->_modelParams->modelQuery->select($sqlConditions, $sqlGrouping, $sqlOrdering, $sqlLimit);
         }
     }
 ?>

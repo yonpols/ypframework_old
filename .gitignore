@@ -1,4 +1,5 @@
 /nbproject/private/
-/app/tmp/
-/app/logs/
-/app/db/
+/app/tmp/*
+/app/logs/*
+/app/db/*
+.DS_Store

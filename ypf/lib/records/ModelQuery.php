@@ -75,15 +75,7 @@
 
         public function first()
         {
-            $aliasPrefix = ($this->aliasName == null)? '': $this->aliasName.'.';
-            $fields = (count($this->sqlFields) == 0)? array($aliasPrefix.'*'): $this->sqlFields;
-
-            $sql = sprintf('SELECT %s FROM %s%s',
-                            implode(', ', $fields),
-                            $this->tableReference,
-                            $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
-                                $this->sqlOrdering, '0,1'));
-
+            $sql = $this->limit(1)->getSqlQuery();
             $query = $this->database->query($sql);
             $row = $query->getNext();
             return $this->getModelInstance($row, $query);
@@ -91,17 +83,8 @@
 
         public function last()
         {
-            $aliasPrefix = ($this->aliasName == null)? '': $this->aliasName.'.';
-            $fields = (count($this->sqlFields) == 0)? array($aliasPrefix.'*'): $this->sqlFields;
-
             $count = $this->count();
-
-            $sql = sprintf('SELECT %s FROM %s%s',
-                            implode(', ', $fields),
-                            $this->tableReference,
-                            $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
-                                $this->sqlOrdering, sprintf('%d,1', $count-1)));
-
+            $sql = $this->limit(array($count-1, 1))->getSqlQuery();
             $query = $this->database->query($sql);
             $row = $query->getNext();
             return $this->getModelInstance($row, $query);
@@ -183,7 +166,15 @@
         public function getSqlQuery()
         {
             $aliasPrefix = ($this->aliasName == null)? '': $this->aliasName.'.';
-            $fields = (count($this->sqlFields) == 0)? array($aliasPrefix.'*'): $this->sqlFields;
+            if (count($this->sqlFields) > 0)
+                $fields = array($aliasPrefix.'*');
+            else
+            {
+                $fields = array();
+                $modelParams = Model::getModelParams($this->modelName);
+                foreach ($modelParams->keyFields as $field)
+                    $fields[] = $aliasPrefix.$field;
+            }
 
             return sprintf('SELECT %s FROM %s%s', implode(', ', $fields), $this->tableReference,
                         $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
@@ -198,9 +189,7 @@
             if (count($this->sqlFields) == 1)
                 return array_shift($row);
 
-            $instance = eval(sprintf('return new %s();', $this->modelName));
-            $instance->loadFromRecord($row, $query);
-            return $instance;
+            return eval(sprintf('return %s::find($row);', $this->modelName));
         }
 
         private function processCustomQuery($name)
