@@ -3,11 +3,15 @@
     {
         private $data;
         private $controller;
+        private $prefix = '';
 
-        public function __construct($controller = null)
+        public function __construct($controller = null, $viewProfile = null)
         {
             $this->clear();
             $this->controller = $controller;
+
+            if ($viewProfile !== null)
+                $this->prefix = sprintf("_profiles/%s/", $viewProfile);
         }
 
         public function assign($key, $value = true)
@@ -31,13 +35,15 @@
         {
             $this->data = new Object;
             $this->data->view = $this;
-            $this->data->app = Application::$app;
+            $this->data->config = Configuration::get();
+            $this->data->routes = $this->data->config->routes;
+            $this->data->app = Application::get();
         }
 
         public function render($viewName)
         {
-            $compiledFile = TMP_PATH.classToFileName($viewName).'.php';
-            $templateFile = APP_PATH.'views/'.classToFileName($viewName).'.html';
+            $compiledFile = Configuration::get()->paths->temp.'/'.$this->prefix.classToFileName($viewName).'.php';
+            $templateFile = Configuration::get()->paths->application.'/views/'.$this->prefix.classToFileName($viewName).'.html';
 
             if (!file_exists($templateFile))
                 throw new YPFrameworkError ('Template '.$viewName.':'.$templateFile.' not found');

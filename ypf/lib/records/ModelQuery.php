@@ -24,7 +24,7 @@
                                     $sqlOrdering = array(), $sqlLimit = null,
                                     $customQueries = array(), $aliaseQuery = true)
         {
-            $this->database = Application::$app->database;
+            $this->database = Application::get()->database;
             $this->modelName = $modelName;
             $this->tableName = $tableName;
             $this->aliasName = $aliasName;
@@ -35,11 +35,7 @@
             $this->sqlOrdering = $sqlOrdering;
             $this->sqlLimit = $sqlLimit;
             $this->customQueries = $customQueries;
-
-            if ($aliaseQuery)
-                $this->tableReference = "($tableName) AS $aliasName";
-            else
-                $this->tableReference = $tableName;
+            $this->tableReference = $tableName;
         }
 
         //Devuelven valores simples o una instancia de modelos
@@ -79,38 +75,19 @@
 
         public function first()
         {
-            if (count($this->sqlFields) == 0)
-                $fields = array($this->aliasName.'.*');
-            else
-                $fields = $this->sqlFields;
-
-            $sql = sprintf('SELECT %s FROM %s%s',
-                            implode(', ', $fields),
-                            $this->tableReference,
-                            $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
-                                $this->sqlOrdering, '0,1'));
-
-            $row = $this->database->value($sql, true);
-            return $this->getModelInstance($row);
+            $sql = $this->limit(1)->getSqlQuery();
+            $query = $this->database->query($sql);
+            $row = $query->getNext();
+            return $this->getModelInstance($row, $query);
         }
 
         public function last()
         {
-            if (count($this->sqlFields) == 0)
-                $fields = array($this->aliasName.'.*');
-            else
-                $fields = $this->sqlFields;
-
             $count = $this->count();
-
-            $sql = sprintf('SELECT %s FROM %s%s',
-                            implode(', ', $fields),
-                            $this->tableReference,
-                            $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
-                                $this->sqlOrdering, sprintf('%d,1', $count-1)));
-
-            $row = $this->database->value($sql, true);
-            return $this->getModelInstance($row);
+            $sql = $this->limit(array($count-1, 1))->getSqlQuery();
+            $query = $this->database->query($sql);
+            $row = $query->getNext();
+            return $this->getModelInstance($row, $query);
         }
 
         public function toArray()
@@ -186,22 +163,33 @@
                 return $this->processCustomQuery($name);
         }
 
-        protected function getModelInstance($row)
+        public function getSqlQuery()
+        {
+            $aliasPrefix = ($this->aliasName == null)? '': $this->aliasName.'.';
+            if (count($this->sqlFields) > 0)
+                $fields = array($aliasPrefix.'*');
+            else
+            {
+                $fields = array();
+                $modelParams = Model::getModelParams($this->modelName);
+                foreach ($modelParams->keyFields as $field)
+                    $fields[] = $aliasPrefix.$field;
+            }
+
+            return sprintf('SELECT %s FROM %s%s', implode(', ', $fields), $this->tableReference,
+                        $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
+                                            $this->sqlOrdering, $this->sqlLimit));
+        }
+
+        protected function getModelInstance($row, $query)
         {
             if ($row == false)
                 return null;
 
-            if (count($this->sqlFields) > 0)
-            {
-                if (count($this->sqlFields)==1)
-                    return array_shift ($row);
-                else
-                    return $row;
-            }
+            if (count($this->sqlFields) == 1)
+                return array_shift($row);
 
-            $instance = eval(sprintf('return new %s();', $this->modelName));
-            $instance->loadFromRecord($row);
-            return $instance;
+            return eval(sprintf('return %s::find($row);', $this->modelName));
         }
 
         private function processCustomQuery($name)
@@ -217,6 +205,7 @@
                 else
                     $sqlConditions = array_merge ($sqlConditions, $query['sqlConditions']);
             }
+
             $sqlGrouping = $this->sqlGrouping;
             if (isset($query['sqlGrouping']))
             {
@@ -225,6 +214,7 @@
                 else
                     $sqlGrouping = array_merge ($sqlGrouping, $query['sqlGrouping']);
             }
+
             $sqlOrdering = $this->sqlOrdering;
             if (isset($query['sqlOrdering']))
             {
@@ -233,10 +223,12 @@
                 else
                     $sqlOrdering = array_merge ($sqlOrdering, $query['sqlOrdering']);
             }
+
             if (!isset($query['sqlLimit']))
                 $sqlLimit = $this->sqlLimit;
             else
                 $sqlLimit = $query['sqlLimit'];
+
             if (!isset($query['sqlFields']))
                 $sqlFields = $this->sqlFields;
             elseif (is_string($query['sqlFields']))
@@ -244,7 +236,17 @@
             else
                 $sqlFields = $query['sqlFields'];
 
-            $modelQuery = new ModelQuery($this->modelName, $this->tableName, $this->aliasName,
+            if (!isset($query['tableReference']))
+                $tableReference = $this->tableReference;
+            else
+                $tableReference = $query['tableReference'];
+
+            if (!isset($query['aliasName']))
+                $aliasName = $this->aliasName;
+            else
+                $aliasName = $query['aliasName'];
+
+            $modelQuery = new ModelQuery($this->modelName, $tableReference, $aliasName,
                                         $sqlFields, $sqlConditions, $sqlGrouping,
                                         $sqlOrdering, $sqlLimit, $others, $this->aliaseQuery);
             if (isset($query['action']))
@@ -298,24 +300,16 @@
         {
             if ($this->_query === null)
             {
-                if (count($this->sqlFields) == 0)
-                    $fields = array($this->aliasName.'.*');
-                else
-                    $fields = $this->sqlFields;
-
-                $sql = sprintf('SELECT %s FROM %s%s',
-                                implode(', ', $fields),
-                                $this->tableReference,
-                                $this->getSQLSuffix($this->sqlConditions, $this->sqlGrouping,
-                                    $this->sqlOrdering, $this->sqlLimit));
-                $this->_query = $this->database->query($sql);
+                $this->_query = $this->database->query($this->getSqlQuery());
                 $this->_iteratorCurrentIndex = -1;
+                if ($this->_query === false)
+                    throw new YPFrameworkError ('You have an error in your query: '.$this->getSqlQuery());
             }
 
             if (($row = $this->_query->getNext()))
             {
                 $this->_iteratorCurrentIndex++;
-                $this->_iteratorCurrentInstance = $this->getModelInstance($row);
+                $this->_iteratorCurrentInstance = $this->getModelInstance($row, $this->_query);
             } else
                 $this->_iteratorCurrentIndex = -1;
         }

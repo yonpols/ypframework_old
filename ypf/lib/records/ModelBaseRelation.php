@@ -27,12 +27,11 @@
             $this->relatorModelName = $relatorModelName;
             $this->relationName = $relationName;
             $this->relationParams = $relationParams;
-            $this->customQueries =
 
-            $sqlConditions = isset($relationParams['sqlConditions'])? $relationParams['sqlConditions']: array();
-            $sqlGrouping = isset($relationParams['sqlGrouping'])? $relationParams['sqlGrouping']: array();
-            $sqlOrdering = isset($relationParams['sqlOrdering'])? $relationParams['sqlOrdering']: array();
-            $this->customQueries = isset($relationParams['queries'])? $relationParams['queries']: array();
+            $sqlConditions = isset($relationParams['sqlConditions'])? arraize($relationParams['sqlConditions']): array();
+            $sqlGrouping = isset($relationParams['sqlGrouping'])? arraize($relationParams['sqlGrouping']): array();
+            $sqlOrdering = isset($relationParams['sqlOrdering'])? arraize($relationParams['sqlOrdering']): array();
+            $this->customQueries = isset($relationParams['queries'])? arraize($relationParams['queries']): array();
 
             if (isset($this->relationParams['belongs_to']))
             {
@@ -46,8 +45,8 @@
                     throw new YPFrameworkError ('Model not defined: '.$relatedModel);
 
                 $joinConditions = array();
-                $this->tempAliasRelator = 'table'.(self::$_temporalAlias++);
-                $this->tempAliasRelated = $this->relationName;
+                $this->tempAliasRelator = ($this->relatorModelParams->aliasName!=null)? $this->relatorModelParams->aliasName: $this->relationName.'_table'.(self::$_temporalAlias++);
+                $this->tempAliasRelated = ($this->relatedModelParams->aliasName!=null)? $this->relatedModelParams->aliasName: $this->relationName;
 
                 foreach($this->relationParams['keys'] as $index=>$key)
                     $joinConditions[] = sprintf('(%s.%s = %s.%s)',
@@ -71,12 +70,12 @@
                 if ($this->relatedModelParams === null)
                     throw new YPFrameworkError ('Model not defined: '.$relatedModel);
 
-                $this->tempAliasRelator = 'table'.(self::$_temporalAlias++);
-                $this->tempAliasRelated = $this->relationName;
+                $this->tempAliasRelator = ($this->relatorModelParams->aliasName!=null)? $this->relatorModelParams->aliasName: $this->relationName.'_table'.(self::$_temporalAlias++);
+                $this->tempAliasRelated = ($this->relatedModelParams->aliasName!=null)? $this->relatedModelParams->aliasName: $this->relationName;
 
                 if (isset($this->relationParams['through']))
                 {
-                    $tempAliasJoiner = 'table'.(self::$_temporalAlias++);
+                    $tempAliasJoiner = $this->relationName.'_table'.(self::$_temporalAlias++);
                     $this->relationType .= '_through';
 
                     $joinConditionsRor = array();
@@ -92,37 +91,45 @@
                             $this->tempAliasRelated, $index,
                             $tempAliasJoiner, $key);
 
-                    $tableName = sprintf("(%s) AS %s JOIN (%s) AS %s JOIN (%s) AS %s ON %s AND %s",
-                            $this->relatedModelParams->tableName,
-                            $this->tempAliasRelated,
+
+                    $relator = ($this->relatorModelParams->aliasName == $this->tempAliasRelator)? $this->relatorModelParams->tableName: sprintf('%s AS %s', $this->relatorModelParams->tableName, $this->tempAliasRelator);
+                    $related = ($this->relatedModelParams->aliasName == $this->tempAliasRelated)? $this->relatedModelParams->tableName: sprintf('%s AS %s', $this->relatedModelParams->tableName, $this->tempAliasRelated);
+                    $tableName = sprintf("%s JOIN %s AS %s JOIN %s ON %s",
+                            $related,
                             $this->relationParams['through'],
                             $tempAliasJoiner,
-                            $this->relatorModelParams->tableName,
-                            $this->tempAliasRelator,
-                            implode(' AND ', $joinConditionsRed),
-                            implode(' AND ', $joinConditionsRor));
+                            $relator,
+                            implode(' AND ', array_merge($joinConditionsRed, $joinConditionsRor)));
                 } else
                 {
                     $joinConditions = array();
                     foreach($this->relationParams['keys'] as $index=>$key)
-                        $joinConditions[] = sprintf('(%s.%s = %s.%s)',
-                            $this->tempAliasRelated, $key,
-                            $this->tempAliasRelator, $this->relatorModelParams->keyFields[$index]);
+                    {
+                        if (is_numeric($index))
+                            $joinConditions[] = sprintf('(%s.%s = %s.%s)',
+                                $this->tempAliasRelated, $key,
+                                $this->tempAliasRelator, $this->relatorModelParams->keyFields[$index]);
+                        else
+                            $joinConditions[] = sprintf('(%s.%s = %s.%s)',
+                                $this->tempAliasRelated, $key,
+                                $this->tempAliasRelator, $index);
+                    }
                 }
             }
 
             if (!isset($tableName))
-                $tableName = sprintf("(%s) AS %s JOIN (%s) AS %s ON %s",
-                            $this->relatedModelParams->tableName,
-                            $this->tempAliasRelated,
-                            $this->relatorModelParams->tableName,
-                            $this->tempAliasRelator,
+            {
+                $relator = ($this->relatorModelParams->aliasName == $this->tempAliasRelator)? $this->relatorModelParams->tableName: sprintf('%s AS %s', $this->relatorModelParams->tableName, $this->tempAliasRelator);
+                $related = ($this->relatedModelParams->aliasName == $this->tempAliasRelated)? $this->relatedModelParams->tableName: sprintf('%s AS %s', $this->relatedModelParams->tableName, $this->tempAliasRelated);
+                $tableName = sprintf("%s JOIN %s ON %s",
+                            $related, $relator,
                             implode(' AND ', $joinConditions));
+            }
 
-            $this->modelQuery = new ModelQuery($this->relatedModelName, $tableName, $this->relationName, array(),
-                $this->relatedModelParams->sqlConditions,
-                $this->relatedModelParams->sqlGrouping,
-                $this->relatedModelParams->sqlOrdering, null,
+            $this->modelQuery = new ModelQuery($this->relatedModelName, $tableName, $this->tempAliasRelated, array(),
+                array_merge($this->relatedModelParams->sqlConditions, $sqlConditions),
+                array_merge($this->relatedModelParams->sqlGrouping, $sqlGrouping),
+                array_merge($this->relatedModelParams->sqlOrdering, $sqlOrdering), null,
                 $this->customQueries, false);
         }
 

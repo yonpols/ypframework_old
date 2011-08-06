@@ -1,28 +1,29 @@
 <?php
     class ApplicationBase extends Object
     {
-        public static $app = null;
+        private static $app = null;
 
-        public $title;
-        public $database = null;
-        public $notice = null;
-        public $error = null;
-        public $lastAction = null;
-        public $urlBasePath = null;
+        private $title;
+        private $config;
+        private $database = null;
+
+        private $notice = null;
+        private $error = null;
+        private $lastAction = null;
 
         private $params = null;
         private $viewName = null;
         private $data = null;
         private $layout = 'main';
+        private $profile = null;
 
         private $actions = array();
-        private $output = null;
-        private $format = '.html';
+        private $format = 'html';
 
         public static function run($db = null)
         {
             if ($db === NULL)
-                $db = new MySQLDataBase(DB_NAME, DB_HOST, DB_USER, DB_PASS);
+                $db = self::loadDB();
 
             self::$app = new Application($db);
 
@@ -31,14 +32,55 @@
 
         public static function log($type, $message)
         {
-            $fd = fopen(LOG_PATH.'log'.date("Ym").'.txt', "a");
+            $fd = fopen(LOG_PATH.'/log'.date("Ym").'.txt', "a");
             fwrite($fd, sprintf("[%s] %s\n", $type, $message));
             fclose($fd);
+        }
+
+        public static function get()
+        {
+            if (self::$app == null)
+                Application::run ();
+
+            return self::$app;
+        }
+
+        protected static function loadDB()
+        {
+            $config = Configuration::get();
+            $dbtype = $config->database('type');
+
+            if ($dbtype === null)
+                return null;
+
+            $dbdriver = $config->paths->ypf.'/lib/databases/'.$dbtype.'.php';
+            if (file_exists($dbdriver))
+            {
+                require_once $dbdriver;
+                $str = sprintf('return new %sDataBase($config->database());', $dbtype);
+                return eval($str);
+            } else
+                throw new YPFrameworkError ('Specified database driver doesn\'t exist: '.$dbtype);
+        }
+
+        public function __get($name)
+        {
+            $allowed = array('config', 'title', 'database', 'notice', 'error', 'lastAction', 'urlBasePath', 'profile', 'layout');
+            if (array_search($name, $allowed) !== false)
+                return $this->{$name};
+        }
+
+        public function __set($name, $value)
+        {
+            $allowed = array('title', 'notice', 'error');
+            if (array_search($name, $allowed) !== false)
+                $this->{$name} = $value;
         }
 
         public function render()
         {
             $this->processUrl();
+            $this->processProfile();
             $controller = null;
 
             while ($action = array_shift($this->actions))
@@ -51,12 +93,12 @@
                 if ($action['controller'][0] == '_')
                 {
                     $className = fileNameToClass(preg_replace('/[^A-Za-z_]/', 'A', substr($action['controller'], 1))).'Controller';
-                    $archivo = YPF_PATH.sprintf('app/controllers/%s.php', classToFileName($className));
+                    $archivo = $this->config->paths->ypf.sprintf('/app/controllers/%s.php', classToFileName($className));
                 }
                 else
                 {
                     $className = fileNameToClass(preg_replace('/[^A-Za-z_]/', 'A', $action['controller'])).'Controller';
-                    $archivo = APP_PATH.sprintf('controllers/%s.php', classToFileName($className));
+                    $archivo = $this->config->paths->application.sprintf('/controllers/%s.php', classToFileName($className));
                 }
                 $className = strtoupper($className[0]).substr($className, 1);
 
@@ -85,24 +127,24 @@
             if ($this->error) $this->data->error = $this->error;
             if ($this->notice) $this->data->notice = $this->notice;
 
-            if (!APP_DEVELOPMENT)
+            if ($this->config->mode != 'development')
                 ob_clean();
 
-            if ($this->format == '.json')
+            if ($this->format == 'json')
             {
                 header('Cache-Control: no-cache, must-revalidate');
                 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
                 header('Content-type: application/json');
                 echo json_encode ($this->data->__toJSONRepresentable());
             }
-            if ($this->format == '.xml')
+            if ($this->format == 'xml')
             {
                 header('Cache-Control: no-cache, must-revalidate');
                 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
                 header('Content-type: text/xml');
                 echo $this->objectToXML($this->data);
             }
-            elseif ($this->format == '.js')
+            elseif ($this->format == 'js')
             {
                 header('Cache-Control: no-cache, must-revalidate');
                 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
@@ -114,7 +156,7 @@
                     foreach (get_object_vars ($this->data) as $value)
                         echo $value;
             }
-            elseif ($this->format == '.html')
+            elseif (($this->format == 'html') || ($this->format == 'clean'))
             {
                 header('Content-Type: text/html; charset=utf-8');
                 header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
@@ -127,35 +169,39 @@
                     if (strpos($this->viewName, '/') === false)
                         $this->viewName = $this->lastAction['controller'].'/'.$this->viewName;
 
-                    $view = new View($controller);
+                    $view = new View($controller, $this->profile);
                     foreach ($this->data as $key=>$value)
                         $view->set($key, $value);
                     $html = $view->render($this->viewName);
 
-                    $view = new ViewBase();
-                    $view->set('html', $html);
-                    $view->set('app', $this);
-                    $view->set('cont', $controller);
+                    if ($this->format == 'html')
+                    {
+                        $view = new ViewBase(null, $this->profile);
+                        $view->set('html', $html);
+                        $view->set('app', $this);
+                        $view->set('cont', $controller);
 
-                    echo $view->render('layouts/'.$this->layout);
+                        echo $view->render('_layouts/'.$this->layout);
+                    } else {
+                        echo $html;
+                    }
                 } else
                 {
-                    echo file_get_contents(WWW_PATH.'static/'.$this->lastAction['action'].'.html');
+                    echo file_get_contents($this->config->paths->www.'/static/'.$this->lastAction['action'].'.html');
                 }
-            }
+            } elseif ($this->format == 'raw')
+                echo $this->data;
         }
 
-        public function redirectTo($action = null, $object = null, $format = null, $params = array())
-        {
-            $this->redirectToUrl(urlTo($action, $object, $format, $params));
-        }
-
-        public function redirectToUrl($url)
+        public function redirectTo($url=null)
         {
             if ($this->error)
                 $_SESSION['error'] = $this->error;
             if ($this->notice)
                 $_SESSION['notice'] = $this->notice;
+
+            if ($url === null)
+                $url = $this->config->application('url');
 
             header('Location: '.$url);
             exit;
@@ -206,16 +252,10 @@
 
         protected function __construct($database)
         {
+            $this->config = Configuration::get();
             $this->database = $database;
-
-            if (isset($_SESSION['usuario']))
-                $this->usuario = $_SESSION['usuario'];
-            if (isset($_SESSION['facID']))
-                $this->facultad = $_SESSION['facID'];
-
             $this->data = new Object();
-            $this->urlBasePath = APP_URL;
-            $this->title = APP_TITLE;
+            $this->title = $this->config->application('title');
 
             if (isset($_SESSION['error']))
             {
@@ -232,25 +272,50 @@
 
         private function processUrl()
         {
-            if (APP_ROOT != '')
-                $default = explode('.', APP_ROOT);
+            if (isset($_GET['::action']))
+                $action = $_GET['::action'];
             else
-                $default = array(null, 'index');
+                $action = $this->config->application('root', '/home/index');
+            if ($action[0] == '/')
+                $action = substr($action, 1);
 
-            $this->actions[] = array(
-                "controller" => get('controller', $default[0]),
-                "action"     => get('action', $default[1]));
-            $this->format = get('format', '.html');
+            $match = $this->config->matchingRoute($action);
+            if ($match !== false)
+            {
+                $this->actions = array(array(
+                    'controller' => $match['controller'],
+                    'action' => $match['action']
+                ));
 
-            unset($_GET['controller']);
-            unset($_GET['action']);
-            unset($_GET['format']);
+                $this->format = get('format', $match['format']);
+                unset($match['controller']);
+                unset($match['action']);
+                unset($match['format']);
 
-            foreach ($_POST as $k=>$v)
-                if ($v == '')
-                    unset($_POST[$k]);
+                foreach ($_POST as $k=>$v)
+                    if ($v == '')
+                        unset($_POST[$k]);
 
-            $this->params = array_merge($_GET, $_POST);
+                $this->params = array_merge($_GET, $_POST, $match);
+            } else
+                throw new YPFrameworkError("No route for action: $action");
+        }
+
+        private function processProfile()
+        {
+            $profile = $this->config->application('profile', true);
+
+            if ($profile === false)
+                $this->profile = null;
+            elseif ($profile === true)
+            {
+                $this->profile = (isMobileBrowser()? 'mobile': 'desktop');
+                $path = $this->config->paths->application.'/views/_profiles/'.$this->profile.'/_layouts';
+                if (!file_exists($path))
+                    $this->profile = null;
+            }
+            else
+                $this->profile = $profile;
         }
     }
 
