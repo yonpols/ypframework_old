@@ -27,7 +27,7 @@
             return (isset(self::$__modelParams->{$model})? self::$__modelParams->{$model}: null);
         }
 
-        public static function find($id)
+        public static function find($id, $instance = null)
         {
             $modelName = get_called_class();
             $modelParams = self::getModelParams($modelName);
@@ -77,7 +77,7 @@
                 return false;
             else
             {
-                $instance = eval(sprintf('return new %s();', $modelName));
+                if ($instance === null) $instance = eval(sprintf('return new %s();', $modelName));
                 $instance->loadFromRecord($row, $query);
                 self::$__cache->{$modelName}[$str_key] = $instance;
 
@@ -153,8 +153,7 @@
 
             if ($id !== null)
             {
-                if (!$this->find($id))
-                    throw new YPFrameworkError (sprintf('Couldn\'t load %s intance with id "%s"', $this->_modelName, $id));
+                throw new YPFrameworkError (sprintf('Couldn\'t load %s intance with id "%s"', $this->_modelName, $id));
             } else {
                 $this->_modelModified = false;
                 $this->_modelFieldModified = array_fill_keys(array_keys($this->_modelParams->tableMetaData), false);
