@@ -27,7 +27,7 @@
             return (isset(self::$__modelParams->{$model})? self::$__modelParams->{$model}: null);
         }
 
-        public static function find($id, $instance = null)
+        public static function find($id, $instance = null, $rawId = false)
         {
             $modelName = get_called_class();
             $modelParams = self::getModelParams($modelName);
@@ -63,9 +63,9 @@
             {
                 foreach ($id as $key=>$value)
                     if (array_search ($key, $modelParams->keyFields) !== false)
-                        $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $key, self::getFieldSQLRepresentation($key, $value, $modelParams));
+                        $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $key, self::getFieldSQLRepresentation($key, $value, $modelParams, $rawId));
             } elseif (count($modelParams->keyFields) == 1)
-                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $modelParams->keyFields[0], self::getFieldSQLRepresentation($modelParams->keyFields[0], $id, $modelParams));
+                $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $modelParams->keyFields[0], self::getFieldSQLRepresentation($modelParams->keyFields[0], $id, $modelParams), $rawId);
             else
                 throw new YPFrameworkError(sprintf('%s.find(): invalid number of key values', $modelName));
 
@@ -439,8 +439,10 @@
                 $aliasPrefix = '';
 
             foreach($this->_modelParams->keyFields as $field)
+            {
                 $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $field,
                     self::getFieldSQLRepresentation ($field, $this->__get($field), $this->_modelParams));
+            }
 
             return $conditions;
         }
@@ -458,15 +460,17 @@
             return null;
         }
 
-        protected static function getFieldSQLRepresentation($field, $value, $modelParams)
+        protected static function getFieldSQLRepresentation($field, $value, $modelParams, $rawData = false)
         {
             if (!array_key_exists($field, $modelParams->tableMetaData))
-                return null;
+                $type = 'string';
+            else
+                $type = $modelParams->tableMetaData[$field]->Type;
 
             if ($value === null)
                 return 'NULL';
 
-            switch ($modelParams->tableMetaData[$field]->Type)
+            switch ($type)
             {
                 case 'integer':
                 case 'int':
@@ -479,10 +483,13 @@
                     return sprintf("%F", $value);
 
                 case 'date':
+                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
                     return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localDateToSqlDate($value)));
                 case 'time':
+                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
                     return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localTimeToSqlTime($value)));
                 case 'datetime':
+                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
                     return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localDateTimeToSqlDateTime($value)));
 
                 case 'varchar':
@@ -490,7 +497,7 @@
                 case 'text':
                 case 'string':
                 default:
-                    if ($modelParams->tableCharset != 'utf-8')
+                    if ($modelParams->tableCharset != 'utf-8' && !$rawData)
                         return sprintf("'%s'", self::$__database->sqlEscaped(iconv('utf-8', $modelParams->tableCharset, $value)));
                     else
                         return sprintf("'%s'", self::$__database->sqlEscaped($value));

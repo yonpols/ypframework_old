@@ -21,6 +21,7 @@
         protected $modelQuery;
         protected $relatorInstance;
         protected $iterationQuery = null;
+        protected $cache = array();
 
         public function __construct($relatorModelName, $relationName, $relationParams)
         {
@@ -136,7 +137,15 @@
         public function get($relatorModel)
         {
             if ($this->relationSingle)
-                return $this->modelQuery->select($relatorModel->getSQlIdConditions($this->tempAliasRelator))->first();
+            {
+                $key = $relatorModel->getSerializedKey();
+
+                if (!isset($this->cache[$key]) || ($this->cache[$key]['used'] > 10))
+                    $this->cache[$key] = array('used' => 0, 'item' => $this->modelQuery->select($relatorModel->getSQlIdConditions($this->tempAliasRelator))->first());
+
+                $this->cache[$key]['used']++;
+                return $this->cache[$key]['item'];
+            }
             else
                 return $this->getTiedToRelator ($relatorModel);
         }

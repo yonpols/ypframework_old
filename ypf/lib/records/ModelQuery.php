@@ -189,7 +189,7 @@
             if (count($this->sqlFields) == 1)
                 return array_shift($row);
 
-            return eval(sprintf('return %s::find($row);', $this->modelName));
+            return eval(sprintf('return %s::find($row, null, true);', $this->modelName));
         }
 
         private function processCustomQuery($name)
