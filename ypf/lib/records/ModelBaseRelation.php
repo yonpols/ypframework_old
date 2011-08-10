@@ -155,13 +155,7 @@
             if ($this->relationSingle)
             {
                 if (is_string($value))
-                {
-                    $object = eval(sprintf('return new %s();', $this->relatedModelName));
-                    if ($object->find($value))
-                        $value = $object;
-                    else
-                        $value = null;
-                }
+                    $value = eval(sprintf('return %s::find($value);', $this->relatedModelName));
 
                 if ($value === null)
                 {
@@ -179,6 +173,7 @@
                 elseif ($this->relationType == 'has_one')
                     foreach($this->relationParams['keys'] as $index=>$key)
                         $value->{$key} = $relatorModel->{$this->relatorModelParams->keyFields[$index]};
+                $this->cache = array();
             } else
                 throw new YPFrameworkError(sprintf('Can\'t assign values to %s relation: %s', $this->relationType, $this->relationName));
         }

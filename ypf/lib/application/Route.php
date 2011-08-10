@@ -75,7 +75,7 @@
             {
                 if (($this->method === null) || (array_search($_SERVER['REQUEST_METHOD'], $this->method) !== false))
                 {
-                    ApplicationBase::log('ROUTE:MATCH', sprintf('%s: %s', $this->name, $action));
+                    Logger::framework('ROUTE:MATCH', sprintf('%s: %s', $this->name, $action));
 
                     $result = array(
                         'controller' => $this->controller,

@@ -26,13 +26,13 @@
 
 			if (($this->db = mysql_connect($this->host, $this->user, $this->pass, true)) === false)
 			{
-				Application::log('ERROR:DB', mysql_error());
+				Logger::framework('ERROR:DB', mysql_error());
 				return false;
 			}
 
 			if (!mysql_select_db($this->dbname, $this->db))
 			{
-				Application::log('ERROR:DB', mysql_error($this->db));
+				Logger::framework('ERROR:DB', mysql_error($this->db));
 				return false;
 			}
 			//mysql_query("SET CHARACTER SET 'latin1'", $this->db);
@@ -56,10 +56,10 @@
 
 			if (!$res)
 			{
-                Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
+                Logger::framework('ERROR:SQL', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
 			} else
-                Application::log('SQL:DB', $sql);
+                Logger::framework('SQL', $sql);
 
             $id = mysql_insert_id($this->db);
 			if ((strtoupper(substr($sql, 0, 6)) == "INSERT") && ($id > 0))
@@ -85,10 +85,10 @@
 
 			if (!$res = mysql_query($sql))
 			{
-				Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
+                Logger::framework('ERROR:SQL', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
 			} else
-                Application::log('SQL:DB', $sql);
+                Logger::framework('SQL', $sql);
 
 			$q = new MySQLQuery($this, $sql, $res);
 			return $q;
@@ -103,10 +103,10 @@
 		{
 			if (!$res = mysql_query($sql))
 			{
-				Application::log('ERROR:DB', sprintf("%s; '%s'", mysql_error($this->db), $sql));
+                Logger::framework('ERROR:SQL', sprintf("%s; '%s'", mysql_error($this->db), $sql));
 				return false;
 			} else
-                Application::log('SQL:DB', $sql);
+                Logger::framework('SQL', $sql);
 
 			$row = mysql_fetch_assoc($res);
 

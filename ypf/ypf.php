@@ -21,6 +21,7 @@
     require_once YPF_PATH.'/lib/application/ControllerBase.php';
     require_once YPF_PATH.'/lib/application/Configuration.php';
     require_once YPF_PATH.'/lib/application/Route.php';
+    require_once YPF_PATH.'/lib/application/Logger.php';
     require_once YPF_PATH.'/lib/templates/ViewBase.php';
     require_once YPF_PATH.'/lib/records/IModelQuery.php';
     require_once YPF_PATH.'/lib/records/ModelQuery.php';
@@ -40,8 +41,10 @@
     require_once APP_PATH.'/base/View.php';
 
     require_once LIB_PATH.'/sfYaml/sfYamlParser.php';;
+
     //Load configuration
     $configuration = Configuration::get();
+    Logger::init();
 
     $helpers = opendir(APP_PATH.'/helpers/');
     while ($helper = readdir($helpers))

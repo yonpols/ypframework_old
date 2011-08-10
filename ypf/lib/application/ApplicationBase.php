@@ -30,13 +30,6 @@
             return self::$app->render();
         }
 
-        public static function log($type, $message)
-        {
-            $fd = fopen(LOG_PATH.'/log'.date("Ym").'.txt', "a");
-            fwrite($fd, sprintf("[%s] %s\n", $type, $message));
-            fclose($fd);
-        }
-
         public static function get()
         {
             if (self::$app == null)
