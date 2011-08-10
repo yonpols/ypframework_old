@@ -162,10 +162,14 @@
                 $path .= '?'.implode('&', $query);
             }
 
+            $base_path = Configuration::get()->application('url');
+            if (substr($base_path, -1) == '/')
+                $base_path = substr($base_path, 0, -1);
+
             if ($path[0] != '/')
-                $path = Configuration::get()->application('url').'/'.$path;
+                $path = $base_path.'/'.$path;
             else
-                $path = Configuration::get()->application('url').$path;
+                $path = $base_path.$path;
 
             return $path;
         }

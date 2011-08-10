@@ -8,18 +8,5 @@
     //define('APP_PATH', realpath(dirname(__FILE__).'/../app').'/');
     //define('LIB_PATH', realpath(dirname(__FILE__).'/../lib').'/');
 
-    require realpath(YPF_PATH.'ypf.php');
-    try
-    {
-        Application::run();
-    }
-    catch (Exception $e)
-    {
-        Logger::framework('ERROR', $e->getMessage()."\n\t".$e->getTraceAsString());
-
-        if (!APP_DEVELOPMENT)
-            ob_clean();
-        header($_SERVER['SERVER_PROTOCOL'] . ' 500 Internal Server Error', true, 500);
-        echo $e->getMessage();
-    }
+    require 'ypf_loader.php';
 ?>

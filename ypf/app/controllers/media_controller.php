@@ -3,15 +3,15 @@
     {
         public function css()
         {
-            if (!file_exists($this->config->paths->temp.'/media/css'))
+            if (!file_exists($this->config->paths->temp.'/media/'.$this->app->profile.'/css'))
             {
-                if (!is_dir($this->config->paths->temp.'/media'))
-                    mkdir($this->config->paths->temp.'/media', 0777, true);
+                if (!is_dir($this->config->paths->temp.'/media/'.$this->app->profile))
+                    mkdir($this->config->paths->temp.'/media/'.$this->app->profile, 0777, true);
 
                 $files = listCSSFiles();
                 require $this->config->paths->library.'/css_compressor/Css.php';
                 $css = new Css($files, $this->config->paths->www.'/css');
-                $css->output($this->config->paths->temp.'/media/css');
+                $css->output($this->config->paths->temp.'/media/'.$this->app->profile.'/css');
             }
 
             ob_end_clean();
@@ -22,26 +22,26 @@
 
             if (extension_loaded('zlib'))
                ob_start('ob_gzhandler');
-           readfile($this->config->paths->temp.'/media/css');
+           readfile($this->config->paths->temp.'/media/'.$this->app->profile.'/css');
            ob_end_flush();
            exit;
         }
 
         public function js()
         {
-            if (!file_exists($this->config->paths->temp.'/media/js'))
+            if (!file_exists($this->config->paths->temp.'/media/'.$this->app->profile.'/js'))
             {
                 $files = listJSFiles();
                 require $this->config->paths->library.'/jsmin.php';
 
-                if (!is_dir($this->config->paths->temp.'/media'))
-                    mkdir($this->config->paths->temp.'/media', 0777, true);
+                if (!is_dir($this->config->paths->temp.'/media/'.$this->app->profile))
+                    mkdir($this->config->paths->temp.'/media/'.$this->app->profile, 0777, true);
 
                 $script = '';
                 foreach ($files as $file)
                     $script .= file_get_contents($this->config->paths->www.'/js/'.$file);
 
-                file_put_contents($this->config->paths->temp.'/media/js', JSMin::minify($script));
+                file_put_contents($this->config->paths->temp.'/media/'.$this->app->profile.'/js', JSMin::minify($script));
             }
 
             ob_end_clean();
@@ -52,7 +52,7 @@
 
             if (extension_loaded('zlib'))
                ob_start('ob_gzhandler');
-            readfile($this->config->paths->temp.'/media/js');
+            readfile($this->config->paths->temp.'/'.$this->app->profile.'/media/js');
             ob_end_flush();
             exit;
         }
