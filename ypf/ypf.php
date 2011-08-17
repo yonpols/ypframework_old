@@ -1,7 +1,5 @@
 <?php
-    //set_error_handler('__ypfErrorHandler');
-    ob_start();
-
+    //Initial paths definitions.
     define('BASE_PATH', dirname(dirname(__FILE__)).'/');
     if (!defined('YPF_PATH')) define('YPF_PATH', realpath(BASE_PATH.'/ypf'));
     if (!defined('LIB_PATH')) define('LIB_PATH', realpath(BASE_PATH.'/lib'));
@@ -12,17 +10,29 @@
 
     define('YPF_MODEL_CACHE_MAX', 20);
 
+    //Check for PHP version
+    if ((!defined('PHP_VERSION_ID')) || PHP_VERSION_ID < 50300)
+        include(YPF_PATH.'/app/errors/php_version.php');
+
+    ob_start();
+
     //Load YPF clases
-    require_once YPF_PATH.'/lib/Object.php';
+    require_once YPF_PATH.'/lib/basic/Object.php';
+    require_once YPF_PATH.'/lib/basic/Base.php';
+    require_once YPF_PATH.'/lib/basic/Exceptions.php';
+    require_once YPF_PATH.'/lib/basic/Logger.php';
+    require_once YPF_PATH.'/lib/basic/Configuration.php';
+
     require_once YPF_PATH.'/lib/databases/DataBase.php';
-    require_once YPF_PATH.'/lib/databases/MySQL.php';
-    require_once YPF_PATH.'/lib/application/Exceptions.php';
+
     require_once YPF_PATH.'/lib/application/ApplicationBase.php';
     require_once YPF_PATH.'/lib/application/ControllerBase.php';
-    require_once YPF_PATH.'/lib/application/Configuration.php';
     require_once YPF_PATH.'/lib/application/Route.php';
-    require_once YPF_PATH.'/lib/application/Logger.php';
+    require_once YPF_PATH.'/lib/application/Cache.php';
+    require_once YPF_PATH.'/lib/application/Filter.php';
+
     require_once YPF_PATH.'/lib/templates/ViewBase.php';
+
     require_once YPF_PATH.'/lib/records/IModelQuery.php';
     require_once YPF_PATH.'/lib/records/ModelQuery.php';
     require_once YPF_PATH.'/lib/records/ModelBaseRelation.php';
@@ -40,67 +50,12 @@
     require_once APP_PATH.'/base/Model.php';
     require_once APP_PATH.'/base/View.php';
 
-    require_once LIB_PATH.'/sfYaml/sfYamlParser.php';;
-
-    //Load configuration
-    $configuration = Configuration::get();
-    Logger::init();
-
+    //Load app helpers
     $helpers = opendir(APP_PATH.'/helpers/');
     while ($helper = readdir($helpers))
         if (is_file(APP_PATH.'/helpers/'.$helper) && substr($helper, -4) == '.php')
             require_once APP_PATH.'/helpers/'.$helper;
 
-    function __autoload($className)
-    {
-        if (!function_exists('classToFileName'))
-            throw new Exception('Coudn\'t find class: '.$className);
-
-        if (substr($className, -10) == 'Controller')
-        {
-            $classFile = APP_PATH.'/controllers/'.classToFileName($className).'.php';
-            if (is_file($classFile))
-                require($classFile);
-            else
-                throw new Exception('Coudn\'t find controller: '.substr($className, 0, -10));
-        } else {
-            $classFile = APP_PATH.'/models/'.classToFileName($className).'.php';
-
-            if (is_file($classFile))
-                require($classFile);
-            else
-                throw new Exception('Coudn\'t find model: '.$className);
-        }
-    }
-
-    function __ypfErrorHandler($errno, $errstr, $errfile, $errline)
-    {
-        $logFile = LOG_PATH.'log'.date("Ym").'.txt';
-
-        @$fd = fopen($logFile, "a");
-
-        if ($fd) {
-            fwrite($fd, sprintf("[PHP_ERROR] %d: %s\n\t%s: line %d", $errno, $errstr, $errfile, $errline));
-            fclose($fd);
-        }
-
-        if ($errno & E_NOTICE)
-            return true;
-
-        ob_clean();
-
-        if (file_exists(WWW_PATH.'/static/error.html'))
-            echo @file_get_contents(WWW_PATH.'/static/error.html');
-        else {
-            echo '<h1>Se ha producido un error inesperado</h1>';
-            echo 'Por favor comun&iacute;quese con el administrador del sistema<br/>';
-
-            printf("[PHP_ERROR] %d: %s\n\t%s: line %d", $errno, $errstr, $errfile, $errline);
-        }
-
-        exit;
-    }
-
-    if ($configuration->mode == 'development')
-        removeTemporaryFiles('');
+    Base::__initialize();
+    Cache::__initialize();
 ?>

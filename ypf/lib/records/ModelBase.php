@@ -1,9 +1,8 @@
-    <?php
-    class ModelBase extends Object implements Iterator
+<?php
+    class ModelBase extends Base implements Iterator
     {
         //Variables de ModelBase, no pueden redefinirse.
         protected static $__cache = null;
-        protected static $__database = null;
         protected static $__modelParams = null;
         //----------------------------------------------------------------------
 
@@ -67,10 +66,10 @@
             } elseif (count($modelParams->keyFields) == 1)
                 $conditions[] = sprintf('(%s%s = %s)', $aliasPrefix, $modelParams->keyFields[0], self::getFieldSQLRepresentation($modelParams->keyFields[0], $id, $modelParams), $rawId);
             else
-                throw new YPFrameworkError(sprintf('%s.find(): invalid number of key values', $modelName));
+                throw new ErrorDataModel ($modelName, 'find(): invalid number of key values');
 
             $sql = $modelParams->modelQuery->fields($modelParams->aliasName.'.*')->select($conditions)->limit(1)->getSqlQuery();
-            $query = self::$__database->query($sql);
+            $query = self::$database->query($sql);
             $row = $query->getNext();
 
             if (!$row)
@@ -153,7 +152,7 @@
 
             if ($id !== null)
             {
-                throw new YPFrameworkError (sprintf('Couldn\'t load %s intance with id "%s"', $this->_modelName, $id));
+                throw new ErrorDataModel($this->_modelName, sprintf('Couldn\'t load intance with id "%s"', $id));
             } else {
                 $this->_modelModified = false;
                 $this->_modelFieldModified = array_fill_keys(array_keys($this->_modelParams->tableMetaData), false);
@@ -264,8 +263,13 @@
 
             $result = true;
             foreach($this->_modelParams->beforeSave as $function)
-                if (call_user_func(array($this, $function)) === false)
-                    $result = false;
+                if (is_callable (array($this, $function)))
+                {
+                    if (call_user_func(array($this, $function)) === false)
+                        $result = false;
+                }
+                else
+                    throw new ErrorNoCallback(get_class($this), $function);
             if (!$result)
                 return false;
 
@@ -280,7 +284,7 @@
                 $sql = sprintf("INSERT INTO %s (%s) VALUES(%s)", $this->_modelParams->baseTableName,
                     implode(', ', $fieldNames), implode(', ', $fieldValues));
 
-                $result = self::$__database->command($sql);
+                $result = self::$database->command($sql);
 
                 if (is_int($result) && (count($this->_modelParams->keyFields)==1))
                 {
@@ -298,7 +302,7 @@
                 $sql = sprintf("UPDATE %s SET %s WHERE %s", $this->_modelParams->baseTableName,
                     implode(', ', $fieldAssigns), implode(' AND ', $this->getSQlIdConditions(false)));
 
-                $result = self::$__database->command($sql);
+                $result = self::$database->command($sql);
             }
 
             if ($result === true)
@@ -308,8 +312,15 @@
 
                 $result = true;
                 foreach($this->_modelParams->afterSave as $function)
-                    if (call_user_func(array($this, $function)) === false)
-                        $result = false;
+                    if (is_callable (array($this, $function)))
+                    {
+                        if (call_user_func(array($this, $function)) === false)
+                            $result = false;
+                    }
+                    else
+                        throw new ErrorNoCallback(get_class($this), $function);
+
+
                 if (!$result)
                     return false;
             }
@@ -321,19 +332,30 @@
         {
             $result = true;
             foreach($this->_modelParams->beforeDelete as $function)
-                if (call_user_func(array($this, $function)) === false)
-                    $result = false;
+                if (is_callable (array($this, $function)))
+                {
+                    if (call_user_func(array($this, $function)) === false)
+                        $result = false;
+                }
+                else
+                    throw new ErrorNoCallback(get_class($this), $function);
+
             if (!$result)
                 return false;
 
             $sql = sprintf("DELETE FROM %s WHERE %s",
                 $this->_modelParams->baseTableName, implode(' AND ', $this->getSQlIdConditions(false)));
 
-            $result = self::$__database->command($sql);
+            $result = self::$database->command($sql);
 
             foreach($this->_modelParams->afterDelete as $function)
-                if (call_user_func(array($this, $function)) === false)
-                    $result = false;
+                if (is_callable (array($this, $function)))
+                {
+                    if (call_user_func(array($this, $function)) === false)
+                        $result = false;
+                }
+                else
+                    throw new ErrorNoCallback(get_class($this), $function);
 
             return $result;
         }
@@ -343,15 +365,20 @@
             $sql = sprintf("SELECT COUNT(*) FROM %s WHERE %s",
                 $this->_modelParams->tableName, implode(' AND ', $this->getSQlIdConditions()));
 
-            return (self::$__database->value($sql) == 0);
+            return (self::$database->value($sql) == 0);
         }
 
         public function loadFromRecord($record, $query)
         {
             $result = true;
             foreach($this->_modelParams->beforeLoad as $function)
-                if (call_user_func(array($this, $function)) === false)
-                    $result = false;
+                if (is_callable (array($this, $function)))
+                {
+                    if (call_user_func(array($this, $function)) === false)
+                        $result = false;
+                }
+                else
+                    throw new ErrorNoCallback(get_class($this), $function);
             if (!$result)
                 return false;
 
@@ -393,15 +420,15 @@
                             break;
 
                         case 'date':
-                            $this->_modelData[$field] = self::$__database->sqlDateToLocalDate($value);
+                            $this->_modelData[$field] = self::$database->sqlDateToLocalDate($value);
                             break;
 
                         case 'time':
-                            $this->_modelData[$field] = self::$__database->sqlDateToLocalDate($value);
+                            $this->_modelData[$field] = self::$database->sqlDateToLocalDate($value);
                             break;
 
                         case 'datetime':
-                            $this->_modelData[$field] = self::$__database->sqlDateTimeToLocalDateTime($value);
+                            $this->_modelData[$field] = self::$database->sqlDateTimeToLocalDateTime($value);
                             break;
 
                         case 'varchar':
@@ -419,8 +446,13 @@
 
             $result = true;
             foreach($this->_modelParams->afterLoad as $function)
-                if (call_user_func(array($this, $function)) === false)
-                    $result = false;
+                if (is_callable (array($this, $function)))
+                {
+                    if (call_user_func(array($this, $function)) === false)
+                        $result = false;
+                }
+                else
+                    throw new ErrorNoCallback(get_class($this), $function);
 
             return $result;
         }
@@ -483,14 +515,14 @@
                     return sprintf("%F", $value);
 
                 case 'date':
-                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
-                    return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localDateToSqlDate($value)));
+                    if ($rawData) return sprintf("'%s'", self::$database->sqlEscaped($value));
+                    return sprintf("'%s'", self::$database->sqlEscaped(self::$database->localDateToSqlDate($value)));
                 case 'time':
-                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
-                    return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localTimeToSqlTime($value)));
+                    if ($rawData) return sprintf("'%s'", self::$database->sqlEscaped($value));
+                    return sprintf("'%s'", self::$database->sqlEscaped(self::$database->localTimeToSqlTime($value)));
                 case 'datetime':
-                    if ($rawData) return sprintf("'%s'", self::$__database->sqlEscaped($value));
-                    return sprintf("'%s'", self::$__database->sqlEscaped(self::$__database->localDateTimeToSqlDateTime($value)));
+                    if ($rawData) return sprintf("'%s'", self::$database->sqlEscaped($value));
+                    return sprintf("'%s'", self::$database->sqlEscaped(self::$database->localDateTimeToSqlDateTime($value)));
 
                 case 'varchar':
                 case 'mediumtext':
@@ -498,9 +530,9 @@
                 case 'string':
                 default:
                     if ($modelParams->tableCharset != 'utf-8' && !$rawData)
-                        return sprintf("'%s'", self::$__database->sqlEscaped(iconv('utf-8', $modelParams->tableCharset, $value)));
+                        return sprintf("'%s'", self::$database->sqlEscaped(iconv('utf-8', $modelParams->tableCharset, $value)));
                     else
-                        return sprintf("'%s'", self::$__database->sqlEscaped($value));
+                        return sprintf("'%s'", self::$database->sqlEscaped($value));
             }
         }
 
@@ -590,11 +622,11 @@
             if (($params->aliasName === null) && ($params->baseTableName !== null))
                 $params->aliasName = $params->baseTableName;
 
-            if (self::$__database === null)
-                self::$__database = Application::get()->database;
+            if (self::$database === null)
+                self::$database = Application::get()->database;
 
             if ($params->baseTableName !== null)
-                $params->tableMetaData = self::$__database->getTableFields($params->baseTableName);
+                $params->tableMetaData = self::$database->getTableFields($params->baseTableName);
             else
             {
                 $params->tableMetaData = array();

@@ -1,7 +1,6 @@
 <?php
-    class ModelQuery extends Object implements Iterator, IModelQuery
+    class ModelQuery extends Base implements Iterator, IModelQuery
     {
-        protected $database;
         protected $modelName;
         protected $tableReference;
         protected $tableName;
@@ -24,7 +23,6 @@
                                     $sqlOrdering = array(), $sqlLimit = null,
                                     $customQueries = array(), $aliaseQuery = true)
         {
-            $this->database = Application::get()->database;
             $this->modelName = $modelName;
             $this->tableName = $tableName;
             $this->aliasName = $aliasName;
@@ -67,7 +65,7 @@
                 $sql = sprintf('SELECT COUNT(*) FROM %s%s', $this->tableReference,
                     $this->getSQLSuffix($sqlConditions, $sqlGrouping));
 
-                $this->_count = $this->database->value($sql);
+                $this->_count = self::$database->value($sql);
             }
 
             return $this->_count;
@@ -76,7 +74,7 @@
         public function first()
         {
             $sql = $this->limit(1)->getSqlQuery();
-            $query = $this->database->query($sql);
+            $query = self::$database->query($sql);
             $row = $query->getNext();
             return $this->getModelInstance($row, $query);
         }
@@ -85,7 +83,7 @@
         {
             $count = $this->count();
             $sql = $this->limit(array($count-1, 1))->getSqlQuery();
-            $query = $this->database->query($sql);
+            $query = self::$database->query($sql);
             $row = $query->getNext();
             return $this->getModelInstance($row, $query);
         }
@@ -300,10 +298,10 @@
         {
             if ($this->_query === null)
             {
-                $this->_query = $this->database->query($this->getSqlQuery());
+                $this->_query = self::$database->query($this->getSqlQuery());
                 $this->_iteratorCurrentIndex = -1;
                 if ($this->_query === false)
-                    throw new YPFrameworkError ('You have an error in your query: '.$this->getSqlQuery());
+                    throw new ErrorDataModel(null, 'You have an error in your query: '.$this->getSqlQuery());
             }
 
             if (($row = $this->_query->getNext()))

@@ -20,6 +20,8 @@ application:
     pretty_url: true
     profile: true
 
+    minify_output: true
+
 routes:
   home:
     match: '/home(.:format)'

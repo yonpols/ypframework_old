@@ -43,7 +43,7 @@
                 $this->relatedModelParams = ModelBase::getModelParams($this->relatedModelName);
 
                 if ($this->relatedModelParams === null)
-                    throw new YPFrameworkError ('Model not defined: '.$relatedModel);
+                    throw new ErrorDataModel ($relatedModel, 'Model not defined.');
 
                 $joinConditions = array();
                 $this->tempAliasRelator = ($this->relatorModelParams->aliasName!=null)? $this->relatorModelParams->aliasName: $this->relationName.'_table'.(self::$_temporalAlias++);
@@ -69,7 +69,7 @@
                 $this->relatedModelParams = ModelBase::getModelParams($this->relatedModelName);
 
                 if ($this->relatedModelParams === null)
-                    throw new YPFrameworkError ('Model not defined: '.$relatedModel);
+                    throw new ErrorDataModel ($relatedModel, 'Model not defined.');
 
                 $this->tempAliasRelator = ($this->relatorModelParams->aliasName!=null)? $this->relatorModelParams->aliasName: $this->relationName.'_table'.(self::$_temporalAlias++);
                 $this->tempAliasRelated = ($this->relatedModelParams->aliasName!=null)? $this->relatedModelParams->aliasName: $this->relationName;
@@ -163,9 +163,9 @@
                         foreach($this->relationParams['keys'] as $index=>$key)
                             $relatorModel->{$key} = null;
                     elseif ($this->relationType == 'has_one')
-                        throw new YPFrameworkError("Unsupported functionality");
+                        throw new ErrorDataModel ($this->relatorModelName, 'Unsupported functionality');
                 } elseif (!($value instanceof $this->relatedModelName))
-                    throw new YPFrameworkError(sprintf('Can\'t assign values to %s relation: %s because object is not instance of %s', $this->relationType, $this->relationName, $this->relatedModelName));
+                    throw new ErrorDataModel($this->relatorModelName, sprintf('Can\'t assign values to %s relation: %s because object is not instance of %s', $this->relationType, $this->relationName, $this->relatedModelName));
 
                 if ($this->relationType == 'belongs_to')
                     foreach($this->relationParams['keys'] as $index=>$key)
@@ -175,13 +175,13 @@
                         $value->{$key} = $relatorModel->{$this->relatorModelParams->keyFields[$index]};
                 $this->cache = array();
             } else
-                throw new YPFrameworkError(sprintf('Can\'t assign values to %s relation: %s', $this->relationType, $this->relationName));
+                throw new ErrorDataModel($this->relatorModelName, sprintf('Can\'t assign values to %s relation: %s', $this->relationType, $this->relationName));
         }
 
         public function create($values = array())
         {
             if ($this->relationType != 'has_many')
-                throw new YPFrameworkError(sprintf('Can\'t create new instance in %s relation: %s', $this->relationType, $this->relationName));
+                throw new ErrorDataModel ($this->relatorModelName, sprintf('Can\'t create new instance in %s relation: %s', $this->relationType, $this->relationName));
 
             $newInstanace = eval(sprintf('return new %s()', $this->relatedModelName));
 
@@ -195,7 +195,7 @@
         public function add($newInstance)
         {
             if ($this->relationType != 'has_many')
-                throw new YPFrameworkError(sprintf('Can\'t create new instance in %s relation: %s', $this->relationType, $this->relationName));
+                throw new ErrorDataModel($this->relatorModelName, sprintf('Can\'t create new instance in %s relation: %s', $this->relationType, $this->relationName));
 
             foreach($this->relationParams['keys'] as $index=>$key)
                 $newInstanace->{$key} = $this->relatorInstance->{$this->relatorModelParams->keyFileds[$index]};

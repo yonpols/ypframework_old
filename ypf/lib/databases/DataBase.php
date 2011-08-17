@@ -40,7 +40,7 @@
 
 		/*
 		 *	Ejecuta una consulta SQL. Destinado a SELECT
-		 *	Devuelve un Objeto YPFWQuery que representa la consulta.
+		 *	Devuelve un Objeto Query que representa la consulta.
 		 *	NULL 	=> si se produjo un error
 		 */
 		public abstract function query($sql, $limit = NULL);

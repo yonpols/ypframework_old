@@ -1,5 +1,5 @@
 <?php
-    class Configuration extends Object
+    class Configuration
     {
         public $application;
         public $mode;
@@ -51,11 +51,23 @@
             return false;
         }
 
+        public function registerRoute(Route $route)
+        {
+            $name = $route->getName();
+
+            if (isset($this->ordered_routes[$name]))
+                return false;
+
+            $this->ordered_routes[$name] = $route;
+            $this->routes->{$name} = $route;
+        }
+
         private function __construct($configFileName = null)
         {
             if ($configFileName === null)
-                $configFileName = APP_PATH.'/config.yml';
+                $configFileName = build_file_path(APP_PATH, 'config.yml');
 
+            require_once build_file_path(LIB_PATH, 'sfYaml/sfYamlParser.php');
             $yaml = new sfYamlParser();
 
             try
@@ -64,7 +76,7 @@
             }
             catch (InvalidArgumentException $e)
             {
-                throw new YPFrameworkError("Can't load configuration file: ".$e->getMessage());
+                throw new ErrorCorruptFile($configFileName, $e->getMessage());
             }
 
             $this->processConfig($config);
@@ -78,7 +90,7 @@
                 unset($config['application']);
             }
             else
-                throw new YPFrameworkError ("Error in configuration file: no 'application' section present");
+                throw new ErrorCorruptFile('config.yml', "Error in configuration file: no 'application' section present");
 
             if (isset($config['routes']))
             {
@@ -86,7 +98,7 @@
                 unset($config['routes']);
             }
             else
-                throw new YPFrameworkError ("Error in configuration file: no 'routes' section present");
+                throw new ErrorCorruptFile ('config.yml', "Error in configuration file: no 'routes' section present");
 
             if (isset($config['databases']))
             {
@@ -95,13 +107,13 @@
             }
 
             $this->paths = new Object();
-            $this->paths->base = BASE_PATH;
-            $this->paths->ypf = YPF_PATH;
-            $this->paths->library = LIB_PATH;
-            $this->paths->www = WWW_PATH;
-            $this->paths->application = APP_PATH;
-            $this->paths->log = LOG_PATH;
-            $this->paths->temp = TMP_PATH;
+            $this->paths->base = realpath(BASE_PATH);
+            $this->paths->ypf = realpath(YPF_PATH);
+            $this->paths->library = realpath(LIB_PATH);
+            $this->paths->www = realpath(WWW_PATH);
+            $this->paths->application = realpath(APP_PATH);
+            $this->paths->log = realpath(LOG_PATH);
+            $this->paths->temp = realpath(TMP_PATH);
             $this->paths->request_uri = sprintf('http%s://%s%s%s', (isset($_SERVER['HTTPS'])?'s':''), $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'],
                                         ($_SERVER['QUERY_STRING']!='')? '?'.$_SERVER['QUERY_STRING']: '');
 

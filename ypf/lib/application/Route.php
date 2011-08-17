@@ -15,7 +15,7 @@
         public function __construct($name, $config)
         {
             if (!isset($config['match']))
-                throw new YPFrameworkError ("No match rule found in route: $name");
+                throw new BaseError("No 'match' rule found in route: $name");
 
             $this->name = $name;
             $this->match = $config['match'];
@@ -172,6 +172,10 @@
                 $path = $base_path.$path;
 
             return $path;
+        }
+
+        public function getName() {
+            return $this->name;
         }
     }
 ?>
